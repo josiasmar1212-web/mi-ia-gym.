@@ -1,34 +1,46 @@
 import streamlit as st
+from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import datetime
 
-st.set_page_config(page_title="GymAnalyst AI v3.0", page_icon="🐗")
+# CONFIGURACIÓN DE PÁGINA Y DISEÑO OSCURO
+st.set_page_config(page_title="GymAnalyst Pro", page_icon="🐗", layout="centered")
 
-st.title("🐗 GymAnalyst AI: Modo Memoria")
+st.markdown("""
+    <style>
+    .main { background-color: #0e1117; }
+    .stButton>button { width: 100%; border-radius: 10px; height: 3em; background-color: #FFD700; color: black; font-weight: bold; }
+    h1 { color: #FFD700; text-align: center; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- ENTRADA DE DATOS ---
-with st.container():
-    ejercicio = st.selectbox("Selecciona Ejercicio", ["Press Militar", "Sentadilla", "Press Banca", "Prensa", "Laterales"])
-    peso_ant = st.number_input("Peso anterior (kg)", value=60.0)
-    peso_act = st.number_input("Peso de hoy (kg)", value=60.0)
+st.title("🐗 GYMANALYST PRO")
+st.write("---")
+
+# CONEXIÓN A BASE DE DATOS
+url = "TU_URL_DE_GOOGLE_SHEETS_AQUÍ" # <--- PEGA AQUÍ TU LINK DE GOOGLE SHEETS
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+# ENTRADA DE ENTRENAMIENTO
+st.subheader("🏋️ Registro de Sesión")
+col1, col2 = st.columns(2)
+
+with col1:
+    ejercicio = st.selectbox("Músculo / Ejercicio", ["Press Militar", "Sentadilla", "Press Banca", "Prensa", "Laterales"])
+    p_ant = st.number_input("Peso Anterior (kg)", value=60.0)
+with col2:
+    p_act = st.number_input("Peso Hoy (kg)", value=60.0)
+
+if st.button("ANALIZAR Y GUARDAR EN LA NUBE"):
+    mejora = ((p_act - p_ant) / p_ant) * 100
     
-    if st.button("💾 GUARDAR Y ANALIZAR"):
-        mejora = ((peso_act - peso_ant) / peso_ant) * 100
-        fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
-        
-        # Crear una nueva fila de datos
-        nueva_fila = pd.DataFrame([[fecha, ejercicio, peso_ant, peso_act, f"{mejora:.1f}%"]], 
-                                  columns=["Fecha", "Ejercicio", "Peso_Anterior", "Peso_Actual", "Progreso"])
-        
-        # Mostrar resultado inmediato
-        if 5 <= mejora <= 7:
-            st.balloons()
-            st.success(f"🏆 ¡ÉPICO! +{mejora:.1f}%")
-        else:
-            st.info(f"Registro guardado: +{mejora:.1f}%")
-            
-        # AQUÍ SE MOSTRARÍA TU HISTORIAL
-        st.write("### 📝 Tu Historial Reciente")
-        st.table(nueva_fila) 
-        
-        st.warning("⚠️ Nota: Para guardar permanentemente en la nube, necesitamos configurar los 'Secrets' en Streamlit. ¿Quieres hacerlo?")
+    # Lógica de Medallas
+    if 5 <= mejora <= 7:
+        st.balloons()
+        st.success(f"🏆 ¡MOMENTO ÉPICO! +{mejora:.1f}%")
+    elif mejora > 7:
+        st.warning(f"🐗🔥 NIVEL BESTIA: +{mejora:.1f}%")
+    else:
+        st.info(f"Progreso: +{mejora:.1f}%")
+
+    # Aquí la IA enviaría los datos a Google Sheets automáticamente
+    st.write("Datos listos para sincronizar...")
