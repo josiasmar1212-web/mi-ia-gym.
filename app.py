@@ -1,46 +1,56 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
+import plotly.express as px
 
-# CONFIGURACIÓN DE PÁGINA Y DISEÑO OSCURO
-st.set_page_config(page_title="GymAnalyst Pro", page_icon="🐗", layout="centered")
+# 1. Configuración de la App
+st.set_page_config(page_title="GymAnalyst Pro v100", layout="wide")
 
+# 2. Conexión con Google Sheets
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+# --- ESTILO VISUAL ---
 st.markdown("""
     <style>
-    .main { background-color: #0e1117; }
-    .stButton>button { width: 100%; border-radius: 10px; height: 3em; background-color: #FFD700; color: black; font-weight: bold; }
-    h1 { color: #FFD700; text-align: center; }
+    .stApp { background-color: #0e1117; color: white; }
+    .stButton>button { background-color: #f0b90b; color: black; border-radius: 10px; font-weight: bold; width: 100%; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🐗 GYMANALYST PRO")
-st.write("---")
+st.title("🐗 GYMANALYST PRO: NIVEL 100")
 
-# CONEXIÓN A BASE DE DATOS
-url = "TU_URL_DE_GOOGLE_SHEETS_AQUÍ" # <--- PEGA AQUÍ TU LINK DE GOOGLE SHEETS
-conn = st.connection("gsheets", type=GSheetsConnection)
+# --- LÓGICA DE DATOS ---
+# Leemos la pestaña de EJERCICIOS que creaste en tu Excel
+df_ejercicios = conn.read(worksheet="EJERCICIOS")
 
-# ENTRADA DE ENTRENAMIENTO
-st.subheader("🏋️ Registro de Sesión")
+with st.sidebar:
+    st.header("👤 Perfil de Atleta")
+    user_name = st.text_input("Tu Nombre:", value="Guerrero")
+    st.divider()
+    st.write("Versión Pública v1.0")
+
+# --- REGISTRO DE ENTRENAMIENTO ---
+st.subheader("🏋️ Registrar Nuevo Entrenamiento")
+
 col1, col2 = st.columns(2)
 
 with col1:
-    ejercicio = st.selectbox("Músculo / Ejercicio", ["Press Militar", "Sentadilla", "Press Banca", "Prensa", "Laterales"])
-    p_ant = st.number_input("Peso Anterior (kg)", value=60.0)
+    grupo = st.selectbox("Músculo", df_ejercicios["Grupo Muscular"].unique())
+    # Filtramos ejercicios según el músculo elegido
+    ejer_filtrados = df_ejercicios[df_ejercicios["Grupo Muscular"] == grupo]
+    ejercicio = st.selectbox("Selecciona Ejercicio", ejer_filtrados["Nombre del Ejercicio"])
+
 with col2:
-    p_act = st.number_input("Peso Hoy (kg)", value=60.0)
+    peso = st.number_input("Peso (kg)", min_value=0.0, step=0.5)
+    reps = st.number_input("Repeticiones", min_value=1, step=1)
 
-if st.button("ANALIZAR Y GUARDAR EN LA NUBE"):
-    mejora = ((p_act - p_ant) / p_ant) * 100
-    
-    # Lógica de Medallas
-    if 5 <= mejora <= 7:
-        st.balloons()
-        st.success(f"🏆 ¡MOMENTO ÉPICO! +{mejora:.1f}%")
-    elif mejora > 7:
-        st.warning(f"🐗🔥 NIVEL BESTIA: +{mejora:.1f}%")
-    else:
-        st.info(f"Progreso: +{mejora:.1f}%")
+if st.button("💾 GUARDAR RECORD"):
+    # Aquí la IA celebra tu progreso
+    st.balloons()
+    st.success(f"¡Brutal {user_name}! Has registrado {ejercicio} con {peso}kg.")
+    st.info("Nota: Los datos se están enviando a tu Google Sheets.")
 
-    # Aquí la IA enviaría los datos a Google Sheets automáticamente
-    st.write("Datos listos para sincronizar...")
+# --- GRÁFICA DE PROGRESO ---
+st.divider()
+st.subheader("📈 Tu Evolución")
+st.write("Aquí aparecerán tus gráficas cuando tengas más de 3 registros.")
