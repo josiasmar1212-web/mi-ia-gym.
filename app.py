@@ -12,7 +12,8 @@ st.title("🐗 GYMANALYST PRO")
 try:
     # Intentamos leer la pestaña EJERCICIOS de tu Excel
     df_ejercicios = conn.read(worksheet="EJERCICIOS")
-    
+     #    Esto lee tus récords pasados
+df_historial = conn.read(worksheet="Hoja 1")
     if not df_ejercicios.empty:
         st.subheader("🏋️ Nuevo Registro")
         # Menú para elegir el músculo
@@ -30,8 +31,4 @@ try:
 except Exception as e:
     st.error("⚠️ Error: No encuentro la pestaña 'EJERCICIOS' en tu Excel.")
     st.info("Asegúrate de que en tu Google Sheets la pestaña de abajo se llame EJERCICIOS (en mayúsculas).")
-# Esto lee el menú de ejercicios
-df_ejercicios = conn.read(worksheet="EJERCICIOS")
 
-# Esto lee tus récords pasados
-df_historial = conn.read(worksheet="Hoja 1")
