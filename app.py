@@ -60,6 +60,7 @@ with tab1:
                         "Reps": f_reps,
                         "Estado": f_sentir
                     }])
+                    # Combinar con historial existente
                     df_final = pd.concat([df_historial, nueva_fila], ignore_index=True)
                     conn.update(worksheet="DATOS", data=df_final)
                     st.balloons()
@@ -69,26 +70,35 @@ with tab1:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-# --- TAB 2: PROGRESO ---
+# --- TAB 2: PROGRESO (CORREGIDO) ---
 with tab2:
     if df_historial is not None and not df_historial.empty:
         ejer_sel = st.selectbox("Evolución de:", df_historial["Ejercicio"].unique())
-        df_f = df_historial[df_historial["Ejercicio"] == ejer_sel]
-        fig = px.line(df_f, x="Fecha", y="Peso", markers=True, color="Estado", title=f"Progreso en {ejer_sel}")
+        df_f = df_historial[df_historial["Ejercicio"] == ejer_sel].copy()
+        
+        # Validar si existe la columna Estado para evitar el ValueError
+        color_col = "Estado" if "Estado" in df_f.columns else None
+        
+        fig = px.line(df_f, x="Fecha", y="Peso", markers=True, 
+                     color=color_col, 
+                     title=f"Progreso en {ejer_sel}",
+                     color_discrete_map={"🔥 Fuerte": "green", "⚡ Normal": "blue", "😴 Cansado": "orange", "🤕 Molestia": "red"})
         st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Registra tu primer entrenamiento para ver la gráfica.")
 
 # --- TAB 3: PLAN IA ---
 with tab3:
-    st.subheader("🤖 Tu Rutina Dividida Personalizada")
+    st.subheader("🤖 Tu Rutina Dividida")
     col1, col2 = st.columns(2)
-    perfil = col1.selectbox("Objetivo", ["Ganar Masa", "Perder Grasa", "Fuerza Pura"])
-    frecuencia = col2.select_slider("Días/Semana", options=[3, 4, 5, 6])
+    perfil = col1.selectbox("Contextura", ["Ectomorfo (Delgado)", "Endomorfo (Ancho)", "Mesomorfo (Atlético)"])
+    frecuencia = col2.select_slider("Días", options=[3, 4, 5])
 
-    if st.button("✨ GENERAR PLAN"):
-        if frecuencia <= 3:
-            rutina = {"Día 1: Push (Pecho/Hombro)": ["Banca", "Militar"], "Día 2: Pull (Espalda/Bíceps)": ["Remo", "Bíceps"], "Día 3: Legs (Pierna)": ["Sentadilla"]}
+    if st.button("✨ GENERAR"):
+        if frecuencia == 3:
+            rutina = {"Día 1: Empuje": ["Banca", "Militar"], "Día 2: Tracción": ["Remo", "Bíceps"], "Día 3: Pierna": ["Sentadilla"]}
         else:
-            rutina = {"Lunes: Pecho": ["Inclinado", "Plano"], "Martes: Espalda": ["Remo", "Jalón"], "Miércoles: Pierna": ["Sentadilla"]}
+            rutina = {"Lunes: Pecho": ["Inclinado", "Plano"], "Martes: Espalda": ["Remo", "Jalón"], "Jueves: Pierna": ["Sentadilla"], "Viernes: Hombro": ["Militar"]}
         
         for dia, ejercicios in rutina.items():
             with st.expander(f"📅 {dia}"):
@@ -98,8 +108,8 @@ with tab3:
 with tab4:
     st.subheader("Calculadora 1RM")
     c1, c2 = st.columns(2)
-    p = c1.number_input("Peso", 1.0, 500.0, 60.0, key="p1")
-    r = c2.number_input("Reps", 1, 20, 5, key="r1")
+    p = c1.number_input("Peso", 1.0, 500.0, 60.0, key="p_calc")
+    r = c2.number_input("Reps", 1, 20, 5, key="r_calc")
     rm = p * (1 + r/30)
     st.metric("1RM Estimado", f"{round(rm, 1)} kg")
 
