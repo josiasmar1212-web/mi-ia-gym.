@@ -3,18 +3,16 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
-# 1. CONFIGURACIÓN
 st.set_page_config(page_title="Gym Pro", layout="wide")
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 st.title("🐗 MI GYM IA")
 
 try:
-    # 2. LEER DATOS
-    # Lee la pestaña EJERCICIOS para el menú
+    # Leer el menú de la pestaña EJERCICIOS
     df_menu = conn.read(worksheet="EJERCICIOS", ttl=0)
     
-    # 3. INTERFAZ DE USUARIO
+    # Interfaz
     musculo = st.selectbox("¿Qué entrenamos?", df_menu.iloc[:, 0].unique())
     ejer_filtrados = df_menu[df_menu.iloc[:, 0] == musculo]
     ejercicio = st.selectbox("Selecciona ejercicio", ejer_filtrados.iloc[:, 1].unique())
@@ -25,7 +23,6 @@ try:
     with col2:
         reps = st.number_input("Reps", 1, 100, 10)
 
-    # 4. BOTÓN DE GUARDAR (Aquí estaba el error)
     if st.button("💾 GUARDAR ENTRENAMIENTO"):
         # Creamos la nueva fila
         nueva_fila = pd.DataFrame([{
@@ -35,16 +32,19 @@ try:
             "Reps": reps
         }])
 
-        # Leemos la pestaña DATOS y añadimos la fila
+        # Leemos el historial de la pestaña DATOS
+        # Si da error aquí, es que la pestaña DATOS no existe o no tiene los títulos
         df_historial = conn.read(worksheet="DATOS", ttl=0)
+        
+        # Combinamos
         df_actualizado = pd.concat([df_historial, nueva_fila], ignore_index=True)
         
-        # Guardamos en el Excel
+        # Actualizamos la hoja
         conn.update(worksheet="DATOS", data=df_actualizado)
         
         st.balloons()
-        st.success(f"¡Guardado! {ejercicio} con {peso}kg")
+        st.success(f"¡Guardado con éxito!")
 
 except Exception as e:
     st.error(f"Error técnico: {e}")
-    st.info("Revisa que tengas las pestañas EJERCICIOS y DATOS en tu Excel.")
+    st.info("Asegúrate de que la pestaña DATOS tenga los títulos: Fecha, Ejercicio, Peso, Reps")
