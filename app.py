@@ -7,26 +7,29 @@ from io import StringIO
 import plotly.express as px
 import time
 
-# 1. CONFIGURACIÓN ESTILO "APP ELITE"
+# 1. CONFIGURACIÓN DE INTERFAZ PROFESIONAL
 st.set_page_config(page_title="Gym IA Elite", page_icon="🐗", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background-color: #0E1117; color: white; }
+    /* Tarjetas de Rutina */
+    .routine-card {
+        background-color: #1f2937; border-radius: 15px; padding: 20px;
+        border-left: 5px solid #00d4ff; margin-bottom: 20px;
+    }
     .stButton>button {
         width: 100%; border-radius: 12px; height: 3.5em;
-        background-color: #1f2937; color: #00d4ff; border: 1px solid #00d4ff;
-        font-weight: bold;
+        background-color: #00d4ff; color: #0E1117; font-weight: bold; border: none;
     }
     .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     .stTabs [data-baseweb="tab"] {
-        background-color: #1f2937; border-radius: 10px; padding: 10px; color: white; font-size: 11px;
+        background-color: #1f2937; border-radius: 10px; padding: 12px; color: white;
     }
-    .css-1kyx730 { background-color: #1f2937; border-radius: 15px; padding: 20px; border: 1px solid #333; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- CONEXIÓN ---
+# --- CONEXIÓN A DATOS ---
 url_base = st.secrets["connections"]["gsheets"]["spreadsheet"].split("/edit")[0]
 
 @st.cache_data(ttl=5)
@@ -40,67 +43,90 @@ def leer_csv(pestana):
 df_ejercicios = leer_csv("EJERCICIOS")
 df_historial = leer_csv("DATOS")
 
-# --- INICIALIZAR RUTINA SI NO EXISTE ---
-if 'my_routine' not in st.session_state:
-    st.session_state['my_routine'] = "Todavía no has definido tu rutina en la pestaña 📝 MANUAL"
+# --- LÓGICA DE MEMORIA ---
+if 'rutina_activa' not in st.session_state:
+    st.session_state['rutina_activa'] = "Define tu plan en la pestaña '📋 CONFIGURAR'"
 
 st.title("🐗 GYM IA ELITE")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏋️ ENTRENO", "📈 PROGRESO", "📋 IA PLAN", "📝 MANUAL", "⏱️ TIMER"])
+tab1, tab2, tab3, tab4 = st.tabs(["🏋️ ENTRENAR", "📋 CONFIGURAR", "📈 PROGRESO", "⏱️ TIMER"])
 
-# --- TAB 1: REGISTRO + TU RUTINA AL PRINCIPIO ---
+# --- TAB 1: EL PANEL DE CONTROL DEL ATLETA ---
 with tab1:
-    # MOSTRAR LA RUTINA PERSONALIZADA AQUÍ
-    st.markdown("### 📅 TU PLAN DE HOY")
-    with st.expander("Ver mi rutina guardada", expanded=True):
-        st.write(st.session_state['my_routine'])
+    st.markdown(f"""
+    <div class="routine-card">
+        <h3 style='margin-top:0;'>📅 MI PLAN ACTUAL</h3>
+        <p style='color: #00d4ff;'>{st.session_state['rutina_activa']}</p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    st.divider()
-    
-    if df_ejercicios is not None:
-        with st.form("reg_form", clear_on_submit=True):
-            st.subheader("Registrar Serie")
-            f_musculo = st.selectbox("Grupo", df_ejercicios.iloc[:, 0].unique())
-            f_ejer = st.selectbox("Ejercicio", df_ejercicios[df_ejercicios.iloc[:, 0] == f_musculo].iloc[:, 1].unique())
-            c1, c2 = st.columns(2)
-            f_peso = c1.number_input("Peso (kg)", 0.0, 500.0, 20.0)
-            f_reps = c2.number_input("Reps", 1, 100, 10)
-            f_sentir = st.select_slider("Estado", options=["😴", "⚡", "🔥"])
-            
-            if st.form_submit_button("GUARDAR EN DIARIO"):
-                conn = st.connection("gsheets", type=GSheetsConnection)
-                nueva_fila = pd.DataFrame([{"Fecha": datetime.now().strftime("%d/%m/%Y"), "Ejercicio": f_ejer, "Peso": f_peso, "Reps": f_reps, "Estado": f_sentir}])
-                df_final = pd.concat([df_historial, nueva_fila], ignore_index=True)
-                conn.update(worksheet="DATOS", data=df_final)
-                st.balloons(); st.success("¡Serie Guardada!"); time.sleep(1); st.rerun()
+    with st.expander("📝 REGISTRAR SERIE DE HOY"):
+        if df_ejercicios is not None:
+            with st.form("reg_form", clear_on_submit=True):
+                c1, c2 = st.columns(2)
+                f_musculo = c1.selectbox("Músculo", df_ejercicios.iloc[:, 0].unique())
+                f_ejer = c2.selectbox("Ejercicio", df_ejercicios[df_ejercicios.iloc[:, 0] == f_musculo].iloc[:, 1].unique())
+                
+                c3, c4, c5 = st.columns(3)
+                f_peso = c3.number_input("Kg", 0.0, 500.0, 20.0)
+                f_reps = c4.number_input("Reps", 1, 100, 10)
+                f_sentir = c5.selectbox("RPE", ["🔥 (Tope)", "⚡ (Bien)", "😴 (Falla)"])
+                
+                if st.form_submit_button("GUARDAR EN EL DIARIO"):
+                    conn = st.connection("gsheets", type=GSheetsConnection)
+                    nueva_fila = pd.DataFrame([{"Fecha": datetime.now().strftime("%d/%m/%Y"), "Ejercicio": f_ejer, "Peso": f_peso, "Reps": f_reps, "Estado": f_sentir}])
+                    df_final = pd.concat([df_historial, nueva_fila], ignore_index=True)
+                    conn.update(worksheet="DATOS", data=df_final)
+                    st.toast("¡Serie guardada con éxito!", icon="✅")
+                    time.sleep(1); st.rerun()
 
-# --- TAB 4: MANUAL (DONDE ESCRIBES) ---
-with tab4:
-    st.subheader("📝 Diseñador de Rutina")
-    new_routine = st.text_area("Escribe aquí tu plan semanal o diario:", 
-                              value=st.session_state['my_routine'], 
-                              height=300)
-    if st.button("💾 GUARDAR Y MOSTRAR EN INICIO"):
-        st.session_state['my_routine'] = new_routine
-        st.success("¡Rutina actualizada! Ve a la pestaña 🏋️ ENTRENO para verla.")
-
-# --- TAB 2, 3 y 5 (IGUALES QUE ANTES) ---
+# --- TAB 2: CONFIGURACIÓN (IA VS MANUAL) ---
 with tab2:
-    if df_historial is not None and not df_historial.empty:
-        ejer_sel = st.selectbox("Análisis:", df_historial["Ejercicio"].unique())
-        df_f = df_historial[df_historial["Ejercicio"] == ejer_sel]
-        st.plotly_chart(px.line(df_f, x="Fecha", y="Peso", markers=True, template="plotly_dark"), use_container_width=True)
+    st.subheader("🛠️ Diseña tu Entrenamiento")
+    opcion = st.radio("¿Quién arma el plan?", ["🤖 Generador IA", "📝 Yo mismo (Manual)"])
+    
+    if opcion == "🤖 Generador IA":
+        col1, col2 = st.columns(2)
+        dias = col1.slider("¿Cuántos días entrenarás?", 2, 6, 4)
+        exp = col2.selectbox("Experiencia", ["Novato (< 6 meses)", "Intermedio (1-2 años)", "Avanzado (> 3 años)"])
+        meta = st.selectbox("Objetivo Principal", ["Ganar Músculo (Hipertrofia)", "Fuerza Pura", "Pérdida de Grasa"])
+        
+        if st.button("✨ GENERAR MI RUTINA CIENTÍFICA"):
+            with st.spinner('IA analizando volumen y frecuencia...'):
+                time.sleep(1.5)
+                # Lógica de generación según días
+                if dias <= 3:
+                    plan = "**Full Body Elite**: Sentadilla, Banca, Remo (Frecuencia 3)"
+                elif dias == 4:
+                    plan = "**Torso/Pierna**: L-J: Torso, M-V: Pierna"
+                else:
+                    plan = "**Push/Pull/Legs**: Rotación continua de empuje, tracción y pierna"
+                
+                st.session_state['rutina_activa'] = f"{meta} - {plan} ({exp})"
+                st.success("¡Rutina generada! Revisa la pestaña 'ENTRENAR'")
 
+    else:
+        manual_plan = st.text_area("Escribe tu rutina detallada aquí:", 
+                                  value=st.session_state['rutina_activa'], height=300)
+        if st.button("💾 GUARDAR MI PLAN MANUAL"):
+            st.session_state['rutina_activa'] = manual_plan
+            st.success("Plan guardado.")
+
+# --- TAB 3: PROGRESO ---
 with tab3:
-    st.subheader("🤖 Generador IA")
-    perfil = st.selectbox("Biotipo", ["Ectomorfo", "Endomorfo", "Mesomorfo"])
-    if st.button("GENERAR"):
-        st.info("Generando plan basado en biotipo...")
-        st.write("- Lunes: Pecho/Tríceps | - Miércoles: Espalda/Bíceps | - Viernes: Pierna")
+    if df_historial is not None and not df_historial.empty:
+        ejer_sel = st.selectbox("Analizar ejercicio:", df_historial["Ejercicio"].unique())
+        df_f = df_historial[df_historial["Ejercicio"] == ejer_sel]
+        fig = px.line(df_f, x="Fecha", y="Peso", markers=True, template="plotly_dark", title=f"Progreso en {ejer_sel}")
+        fig.update_traces(line_color='#00d4ff')
+        st.plotly_chart(fig, use_container_width=True)
 
-with tab5:
-    seg = st.number_input("Descanso (s)", 30, 300, 90)
-    if st.button("EMPEZAR"):
-        bar = st.progress(0)
-        for i in range(seg): time.sleep(1); bar.progress((i+1)/seg)
-        st.warning("¡TIEMPO! 🚀")
+# --- TAB 4: TIMER ---
+with tab4:
+    t = st.number_input("Descanso (segundos)", 30, 300, 90)
+    if st.button("INICIAR DESCANSO"):
+        b = st.progress(0)
+        for i in range(t):
+            time.sleep(1)
+            b.progress((i+1)/t)
+        st.balloons()
