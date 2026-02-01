@@ -8,10 +8,10 @@ import plotly.express as px
 import time
 import random
 
-# 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="Gym IA Master", page_icon="🐗", layout="wide")
+# 1. CONFIGURACIÓN
+st.set_page_config(page_title="Gym IA Master Split", page_icon="🐗", layout="wide")
 
-# --- CONEXIÓN DIRECTA ---
+# --- CONEXIÓN ---
 url_base = st.secrets["connections"]["gsheets"]["spreadsheet"].split("/edit")[0]
 
 @st.cache_data(ttl=5)
@@ -26,118 +26,90 @@ def leer_csv(pestana):
     except:
         return None
 
-# Cargar datos iniciales
 df_ejercicios = leer_csv("EJERCICIOS")
 df_historial = leer_csv("DATOS")
 
-# --- TÍTULO Y MOTIVACIÓN ---
+# --- INTERFAZ ---
 st.title("🐗 GYM IA: COMMAND CENTER")
-frases = [
-    "«La disciplina es el puente entre las metas y los logros.»",
-    "«No te detengas hasta que estés orgulloso.»",
-    "«El dolor es temporal, el orgullo es para siempre.»"
-]
-st.caption(random.choice(frases))
 
-# --- TABS PRINCIPALES ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🏋️ Entrenar", 
-    "📈 Progreso", 
-    "📋 Plan IA", 
-    "🧮 1RM", 
-    "⏱️ Descanso"
+    "🏋️ Entrenar", "📈 Progreso", "📋 Plan Dividido IA", "🧮 1RM", "⏱️ Descanso"
 ])
 
-# --- TAB 1: REGISTRO DE ENTRENAMIENTO ---
+# --- TAB 1: REGISTRO ---
 with tab1:
     if df_ejercicios is not None:
-        with st.form("registro_entreno"):
+        with st.form("reg_form"):
             st.subheader("Registrar Serie")
             f_fecha = st.date_input("Fecha", datetime.now())
             f_musculo = st.selectbox("Músculo", df_ejercicios.iloc[:, 0].unique())
             f_ejer = st.selectbox("Ejercicio", df_ejercicios[df_ejercicios.iloc[:, 0] == f_musculo].iloc[:, 1].unique())
-            
             c1, c2 = st.columns(2)
             f_peso = c1.number_input("Peso (kg)", 0.0, 500.0, 20.0, 0.5)
             f_reps = c2.number_input("Reps", 1, 100, 10)
-            
-            submit = st.form_submit_button("💾 GUARDAR SERIE")
-            
-            if submit:
-                try:
-                    conn = st.connection("gsheets", type=GSheetsConnection)
-                    nueva_fila = pd.DataFrame([{"Fecha": f_fecha.strftime("%d/%m/%Y"), "Ejercicio": f_ejer, "Peso": f_peso, "Reps": f_reps}])
-                    df_final = pd.concat([df_historial, nueva_fila], ignore_index=True)
-                    conn.update(worksheet="DATOS", data=df_final)
-                    st.balloons()
-                    st.success("¡Guardado!")
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error al guardar: {e}")
+            if st.form_submit_button("💾 GUARDAR"):
+                conn = st.connection("gsheets", type=GSheetsConnection)
+                nueva_fila = pd.DataFrame([{"Fecha": f_fecha.strftime("%d/%m/%Y"), "Ejercicio": f_ejer, "Peso": f_peso, "Reps": f_reps}])
+                df_final = pd.concat([df_historial, nueva_fila], ignore_index=True)
+                conn.update(worksheet="DATOS", data=df_final)
+                st.success("Guardado!"); time.sleep(1); st.rerun()
 
-# --- TAB 2: PROGRESO VISUAL ---
+# --- TAB 3: PLANIFICADOR DIVIDIDO (LA CLAVE) ---
+with tab3:
+    st.subheader("🤖 Planificación Dividida Inteligente")
+    col1, col2 = st.columns(2)
+    perfil = col1.selectbox("Tu contextura", ["Delgado (Ectomorfo)", "Sobrepeso (Endomorfo)", "Fuerte (Mesomorfo)"])
+    dias = col2.select_slider("Días de entreno", options=[3, 4, 5])
+
+    if st.button("✨ GENERAR RUTINA DIVIDIDA"):
+        st.write("---")
+        
+        if dias == 3:
+            st.info("💡 **Esquema PPL (Push/Pull/Legs):** Ideal para recuperación total.")
+            rutina = {
+                "Día 1: Empuje (Pecho/Hombro/Tríceps)": ["Press Banca (3x8)", "Press Militar (3x10)", "Fondos (3x12)"],
+                "Día 2: Tracción (Espalda/Bíceps/Posterior)": ["Remo con barra (3x8)", "Dominadas (3xMax)", "Curl Martillo (3x12)"],
+                "Día 3: Pierna Completa": ["Sentadillas (4x8)", "Peso Muerto Rumano (3x10)", "Extensiones (3x15)"]
+            }
+        elif dias == 4:
+            st.info("💡 **Esquema Torso/Pierna:** Máxima frecuencia para ganar músculo.")
+            rutina = {
+                "Lunes: Torso Pesado": ["Press Inclinado", "Remo Kroc", "Press Arnold"],
+                "Martes: Pierna Pesada": ["Prensa 45°", "Curl Femoral", "Zancadas"],
+                "Jueves: Torso Hipertrofia": ["Aperturas", "Jalón al pecho", "Elevaciones laterales"],
+                "Viernes: Pierna Hipertrofia": ["Sentadilla Búlgara", "Extensiones", "Gemelos"]
+            }
+        else:
+            st.info("💡 **Esquema Weider (Dividido por Músculo):** Volumen extremo por zona.")
+            rutina = {
+                "Día 1": "Pecho y Abdominales",
+                "Día 2": "Espalda y lumbares",
+                "Día 3": "Pierna (Énfasis Cuádriceps)",
+                "Día 4": "Hombros y Trapecio",
+                "Día 5": "Bíceps, Tríceps y Pierna (Énfasis Isquios)"
+            }
+
+        for dia, ejer in rutina.items():
+            with st.expander(f"📍 {dia}"):
+                if isinstance(ejer, list):
+                    for e in ejer: st.write(f"- {e}")
+                else: st.write(f"Enfoque: {ejer}")
+        
+        st.caption("Nota: Ajusta el peso según tu calculadora de 1RM.")
+
+# --- TAB 2, 4, 5 (MANTENIENDO EL RESTO) ---
 with tab2:
     if df_historial is not None and not df_historial.empty:
-        st.subheader("Análisis de Fuerza")
-        ejer_sel = st.selectbox("Selecciona Ejercicio:", df_historial["Ejercicio"].unique())
-        df_f = df_historial[df_historial["Ejercicio"] == ejer_sel]
-        fig = px.line(df_f, x="Fecha", y="Peso", markers=True, title=f"Evolución {ejer_sel}", color_discrete_sequence=['#FF4B4B'])
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Aún no hay datos registrados.")
+        ejer_sel = st.selectbox("Evolución de:", df_historial["Ejercicio"].unique())
+        st.plotly_chart(px.line(df_historial[df_historial["Ejercicio"] == ejer_sel], x="Fecha", y="Peso", markers=True), use_container_width=True)
 
-# --- TAB 3: PLANIFICADOR IA ---
-with tab3:
-    st.subheader("🤖 Planificador Inteligente")
-    st.write("Configura tu perfil para generar una rutina a medida.")
-    
-    col_a, col_b = st.columns(2)
-    p_estado = col_a.selectbox("Tu estado actual", ["Delgado (Ectomorfo)", "Sobrepeso (Endomorfo)", "Atlético (Mesomorfo)"])
-    p_objetivo = col_b.selectbox("Tu meta", ["Ganar Músculo", "Perder Grasa", "Fuerza Máxima"])
-    
-    if st.button("✨ GENERAR MI RUTINA"):
-        st.divider()
-        if "Delgado" in p_estado or "Ganar" in p_objetivo:
-            st.markdown("### 🔥 PLAN: VOLUMEN LIMPIO")
-            
-            st.info("Frecuencia: 4 días/semana. Descanso: 90s. Enfoque: Superávit calórico.")
-            st.write("- **Lunes:** Pecho/Tríceps (Enfoque press plano)")
-            st.write("- **Martes:** Espalda/Bíceps (Enfoque dominadas)")
-            st.write("- **Jueves:** Pierna (Enfoque Sentadilla)")
-            st.write("- **Viernes:** Hombro/Core (Enfoque Press Militar)")
-        elif "Sobrepeso" in p_estado or "Perder" in p_objetivo:
-            st.markdown("### 💧 PLAN: DÉFICIT E INTENSIDAD")
-            st.info("Frecuencia: 3 días fuerza + 2 días cardio. Enfoque: Proteína alta.")
-            st.write("- **Días Fuerza:** Rutina FullBody (3x10 reps)")
-            st.write("- **Días Cardio:** 30 min Caminata inclinada o Elíptica")
-        else:
-            st.markdown("### ⚡ PLAN: RENDIMIENTO ATLÉTICO")
-            st.write("- **Rutina:** Empuje/Tracción/Pierna con énfasis en movimientos explosivos.")
-
-# --- TAB 4: CALCULADORA 1RM ---
 with tab4:
-    st.subheader("Calculadora de Fuerza Real")
-    c1, c2 = st.columns(2)
-    calc_p = c1.number_input("Peso levantado (kg)", 1.0, 500.0, 60.0, key="c_p")
-    calc_r = c2.number_input("Reps logradas", 1, 20, 5, key="c_r")
-    
-    one_rm = calc_p * (1 + calc_r/30)
-    st.metric("Tu 1RM Máximo", f"{round(one_rm, 1)} kg")
-    
-    st.write("### Porcentajes de Carga")
-    zonas = {"Fuerza (90%)": 0.9, "Hipertrofia (80%)": 0.8, "Resistencia (70%)": 0.7}
-    for label, pct in zonas.items():
-        st.write(f"**{label}:** {round(one_rm * pct, 1)} kg")
+    p = st.number_input("Peso", 1.0, 500.0, 60.0); r = st.number_input("Reps", 1, 20, 5)
+    st.metric("1RM Estimado", f"{round(p * (1 + r/30), 1)} kg")
 
-# --- TAB 5: TEMPORIZADOR ---
 with tab5:
-    st.subheader("⏱️ Timer de Descanso")
-    t_seg = st.select_slider("Segundos", options=[30, 45, 60, 90, 120, 180], value=90)
-    if st.button(f"INICIAR DESCANSO ({t_seg}s)"):
-        prog = st.progress(0)
-        for s in range(t_seg):
-            time.sleep(1)
-            prog.progress((s + 1) / t_seg)
-        st.success("🔥 ¡A POR LA SIGUIENTE SERIE!")
-        st.balloons()
+    t = st.select_slider("Descanso (s)", [30, 60, 90, 120])
+    if st.button("EMPEZAR"):
+        b = st.progress(0)
+        for i in range(t): time.sleep(1); b.progress((i+1)/t)
+        st.success("¡LISTO!"); st.balloons()
