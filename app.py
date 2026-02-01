@@ -1,43 +1,36 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 
-# Configuración de la App
-st.set_page_config(page_title="GymAnalyst Pro", page_icon="🐗")
-
-# Conexión
+st.set_page_config(page_title="Gym Pro", layout="wide")
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-st.title("🐗 GYMANALYST PRO")
+st.title("🐗 MI GYM IA")
 
 try:
-    # Leemos la pestaña de ejercicios
+    # Leemos los datos (ttl=0 para que no guarde errores viejos)
     df = conn.read(ttl=0)
     
+    # Limpiamos los nombres de las columnas por si acaso hay espacios
+    df.columns = df.columns.str.strip()
+
     if not df.empty:
-        st.subheader("🏋️ Registrar Entrenamiento")
+        # Usamos la posición de la columna en vez del nombre exacto
+        col_musculo = df.columns[0] # La primera columna
+        col_ejercicio = df.columns[1] # La segunda columna
+
+        musculo = st.selectbox("¿Qué entrenamos?", df[col_musculo].unique())
         
-        # Selector de Músculo
-        lista_musculos = df["Grupo Muscular"].unique()
-        musculo = st.selectbox("1. ¿Qué vas a entrenar hoy?", lista_musculos)
+        ejer_filtrados = df[df[col_musculo] == musculo]
+        ejercicio = st.selectbox("Selecciona ejercicio", ejer_filtrados[col_ejercicio].unique())
         
-        # Filtrar ejercicios por ese músculo
-        ejercicios_filtrados = df[df["Grupo Muscular"] == musculo]
-        ejercicio = st.selectbox("2. Selecciona el ejercicio", ejercicios_filtrados["Nombre del Ejercicio"])
+        peso = st.number_input("Peso (kg)", 0.0, step=2.5)
         
-        # Entradas de peso y reps
-        col1, col2 = st.columns(2)
-        with col1:
-            peso = st.number_input("Peso (kg)", min_value=0.0, step=2.5)
-        with col2:
-            reps = st.number_input("Repeticiones", min_value=1, step=1)
-            
-        if st.button("💾 GUARDAR REGISTRO"):
+        if st.button("💾 GUARDAR"):
             st.balloons()
-            st.success(f"¡Brutal! Has registrado {ejercicio} con {peso}kg.")
-            st.info("Nota: Tus récords se están guardando en la nube.")
-            
+            st.success(f"¡Brutal! {ejercicio} guardado.")
     else:
-        st.error("El Excel está conectado pero no tiene datos. Escribe 'Grupo Muscular' en A1 y 'Nombre del Ejercicio' en B1.")
+        st.warning("Escribe tus ejercicios en el Excel.")
 
 except Exception as e:
-    st.error(f"Error al organizar los datos: {e}")
+    st.error(f"Aún no leo bien las columnas. Error: {e}")
+    st.info("Revisa que en el Excel la columna B se llame: Nombre del Ejercicio")
