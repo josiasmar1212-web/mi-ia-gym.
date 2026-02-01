@@ -63,7 +63,7 @@ with tab1:
                     df_final = pd.concat([df_historial, nueva_fila], ignore_index=True)
                     conn.update(worksheet="DATOS", data=df_final)
                     st.balloons()
-                    st.success(f"¡Guardado! Te sentiste {f_sentir}")
+                    st.success("¡Datos guardados!")
                     time.sleep(1)
                     st.rerun()
                 except Exception as e:
@@ -86,7 +86,7 @@ with tab3:
 
     if st.button("✨ GENERAR PLAN"):
         if frecuencia <= 3:
-            rutina = {"Día 1: Push": ["Banca", "Militar"], "Día 2: Pull": ["Remo", "Bíceps"], "Día 3: Legs": ["Sentadilla"]}
+            rutina = {"Día 1: Push (Pecho/Hombro)": ["Banca", "Militar"], "Día 2: Pull (Espalda/Bíceps)": ["Remo", "Bíceps"], "Día 3: Legs (Pierna)": ["Sentadilla"]}
         else:
             rutina = {"Lunes: Pecho": ["Inclinado", "Plano"], "Martes: Espalda": ["Remo", "Jalón"], "Miércoles: Pierna": ["Sentadilla"]}
         
@@ -111,4 +111,4 @@ with tab5:
         for i in range(seg):
             time.sleep(1)
             prog.progress((i+1)/seg)
-        st.success("¡
+        st.success("¡VAMOS!")
