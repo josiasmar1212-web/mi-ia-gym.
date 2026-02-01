@@ -47,9 +47,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["🏋️ Entrenar", "📈 Progreso", "🧮 1RM
 with tab1:
     st.subheader("Registrar Serie")
     if df_ejercicios is not None:
-        # SELECTOR DE FECHA (Nuevo!)
         fecha_sel = st.date_input("Fecha del entreno", datetime.now())
-        
         musculo = st.selectbox("Músculo", df_ejercicios.iloc[:, 0].unique())
         ejercicio = st.selectbox("Ejercicio", df_ejercicios[df_ejercicios.iloc[:, 0] == musculo].iloc[:, 1].unique())
         
@@ -86,11 +84,6 @@ with tab3:
     r = st.number_input("Reps hechas", 1, 20, 5)
     one_rm = p * (1 + r/30)
     st.metric("Tu 1RM Estimado", f"{round(one_rm, 1)} kg")
-    
-    
-
-[Image of RPE scale for resistance training]
-
     st.info("RPE: Recuerda que tu 1RM varía según tu cansancio diario.")
 
 with tab4:
