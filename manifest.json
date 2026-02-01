@@ -1,0 +1,15 @@
+{
+  "name": "Gym IA Elite",
+  "short_name": "GymIA",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0E1117",
+  "theme_color": "#00d4ff",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/tu-usuario/tu-repo/main/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
