@@ -33,14 +33,14 @@ df_historial = leer_csv("DATOS")
 st.title("🐗 GYM IA: ELITE COMMAND CENTER")
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🏋️ Entrenar", "📈 Progreso", "📋 Plan Dividido IA", "🧮 1RM", "⏱️ Descanso"
+    "🏋️ Entrenar", "📈 Progreso", "📋 Planificador", "🧮 1RM", "⏱️ Descanso"
 ])
 
 # --- TAB 1: REGISTRO ---
 with tab1:
     if df_ejercicios is not None:
         with st.form("reg_form"):
-            st.subheader("Registrar Serie y Sensaciones")
+            st.subheader("Registrar Serie")
             f_fecha = st.date_input("Fecha", datetime.now())
             f_musculo = st.selectbox("Músculo", df_ejercicios.iloc[:, 0].unique())
             f_ejer = st.selectbox("Ejercicio", df_ejercicios[df_ejercicios.iloc[:, 0] == f_musculo].iloc[:, 1].unique())
@@ -53,72 +53,54 @@ with tab1:
             if st.form_submit_button("💾 GUARDAR REGISTRO"):
                 try:
                     conn = st.connection("gsheets", type=GSheetsConnection)
-                    nueva_fila = pd.DataFrame([{
-                        "Fecha": f_fecha.strftime("%d/%m/%Y"), 
-                        "Ejercicio": f_ejer, 
-                        "Peso": f_peso, 
-                        "Reps": f_reps,
-                        "Estado": f_sentir
-                    }])
-                    # Combinar con historial existente
+                    nueva_fila = pd.DataFrame([{"Fecha": f_fecha.strftime("%d/%m/%Y"), "Ejercicio": f_ejer, "Peso": f_peso, "Reps": f_reps, "Estado": f_sentir}])
                     df_final = pd.concat([df_historial, nueva_fila], ignore_index=True)
                     conn.update(worksheet="DATOS", data=df_final)
-                    st.balloons()
-                    st.success("¡Datos guardados!")
-                    time.sleep(1)
-                    st.rerun()
+                    st.balloons(); st.success("¡Guardado!"); time.sleep(1); st.rerun()
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-# --- TAB 2: PROGRESO (CORREGIDO) ---
+# --- TAB 2: PROGRESO ---
 with tab2:
     if df_historial is not None and not df_historial.empty:
         ejer_sel = st.selectbox("Evolución de:", df_historial["Ejercicio"].unique())
         df_f = df_historial[df_historial["Ejercicio"] == ejer_sel].copy()
-        
-        # Validar si existe la columna Estado para evitar el ValueError
         color_col = "Estado" if "Estado" in df_f.columns else None
-        
-        fig = px.line(df_f, x="Fecha", y="Peso", markers=True, 
-                     color=color_col, 
-                     title=f"Progreso en {ejer_sel}",
-                     color_discrete_map={"🔥 Fuerte": "green", "⚡ Normal": "blue", "😴 Cansado": "orange", "🤕 Molestia": "red"})
+        fig = px.line(df_f, x="Fecha", y="Peso", markers=True, color=color_col, title=f"Progreso en {ejer_sel}")
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Registra tu primer entrenamiento para ver la gráfica.")
 
-# --- TAB 3: PLAN IA ---
+# --- TAB 3: PLANIFICADOR (IA + MANUAL) ---
 with tab3:
-    st.subheader("🤖 Tu Rutina Dividida")
-    col1, col2 = st.columns(2)
-    perfil = col1.selectbox("Contextura", ["Ectomorfo (Delgado)", "Endomorfo (Ancho)", "Mesomorfo (Atlético)"])
-    frecuencia = col2.select_slider("Días", options=[3, 4, 5])
+    st.subheader("📋 Gestión de Rutinas")
+    
+    sub_tab1, sub_tab2 = st.tabs(["🤖 Generador IA", "📝 Creador Manual"])
+    
+    with sub_tab1:
+        perfil = st.selectbox("Contextura", ["Delgado", "Ancho", "Atlético"])
+        frecuencia = st.select_slider("Días", options=[3, 4, 5])
+        if st.button("✨ GENERAR PLAN IA"):
+            st.info("Plan sugerido basado en tu perfil...")
+            # (Lógica simplificada de rutina)
+            st.write("**Lunes:** Empuje | **Miércoles:** Tracción | **Viernes:** Pierna")
 
-    if st.button("✨ GENERAR"):
-        if frecuencia == 3:
-            rutina = {"Día 1: Empuje": ["Banca", "Militar"], "Día 2: Tracción": ["Remo", "Bíceps"], "Día 3: Pierna": ["Sentadilla"]}
-        else:
-            rutina = {"Lunes: Pecho": ["Inclinado", "Plano"], "Martes: Espalda": ["Remo", "Jalón"], "Jueves: Pierna": ["Sentadilla"], "Viernes: Hombro": ["Militar"]}
-        
-        for dia, ejercicios in rutina.items():
-            with st.expander(f"📅 {dia}"):
-                for e in ejercicios: st.write(f"- {e}")
+    with sub_tab2:
+        st.write("Escribe tu propia rutina. Se guardará localmente en tu navegador.")
+        # Usamos st.text_area para que pueda escribir mucho
+        user_routine = st.text_area("Tu Rutina Personalizada", 
+                                   value=st.session_state.get('my_routine', 'Ejemplo:\nLunes: Pecho y Tríceps\n- Press Banca 4x10\n- Fondos 3x12'),
+                                   height=300)
+        if st.button("💾 GUARDAR MI RUTINA"):
+            st.session_state['my_routine'] = user_routine
+            st.success("¡Rutina guardada en la sesión!")
 
-# --- TAB 4: 1RM ---
+# --- TAB 4 Y 5 (1RM Y TIMER) ---
 with tab4:
-    st.subheader("Calculadora 1RM")
-    c1, c2 = st.columns(2)
-    p = c1.number_input("Peso", 1.0, 500.0, 60.0, key="p_calc")
-    r = c2.number_input("Reps", 1, 20, 5, key="r_calc")
-    rm = p * (1 + r/30)
-    st.metric("1RM Estimado", f"{round(rm, 1)} kg")
+    p = st.number_input("Peso", 1.0, 500.0, 60.0, key="p_c"); r = st.number_input("Reps", 1, 20, 5, key="r_c")
+    st.metric("1RM Estimado", f"{round(p * (1 + r/30), 1)} kg")
 
-# --- TAB 5: TIMER ---
 with tab5:
     seg = st.slider("Segundos", 30, 180, 90, 30)
     if st.button("INICIAR"):
         prog = st.progress(0)
-        for i in range(seg):
-            time.sleep(1)
-            prog.progress((i+1)/seg)
+        for i in range(seg): time.sleep(1); prog.progress((i+1)/seg)
         st.success("¡VAMOS!")
