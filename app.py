@@ -5,110 +5,113 @@ from datetime import datetime
 import time
 import plotly.express as px
 
-# --- CONFIGURACIÓN MorphAI ---
-st.set_page_config(page_title="MorphAI Elite", page_icon="🧬", layout="wide")
+# --- CONFIGURACIÓN DE ESCENA PROFESIONAL ---
+st.set_page_config(page_title="MorphAI Pro", page_icon="🧬", layout="wide")
 
-# Estilo MorphAI Premium (CSS Limpio)
+# CSS Avanzado para Estilo Dark Premium
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
-    .stApp { background-color: #080808; color: #FFFFFF; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Orbitron:wght@700&display=swap');
+    
+    .stApp { background-color: #050505; color: #FFFFFF; }
+    
     .main-title {
         font-family: 'Orbitron', sans-serif;
-        color: #00d4ff;
-        text-align: center;
-        letter-spacing: 5px;
-        text-shadow: 0px 0px 15px rgba(0, 212, 255, 0.4);
+        color: #00d4ff; text-align: center; font-size: 2.8rem;
+        letter-spacing: 10px; margin-bottom: 0px;
+        text-shadow: 0px 0px 20px rgba(0, 212, 255, 0.4);
     }
-    .pizarra {
-        background: #111;
-        border-radius: 15px;
+
+    /* Tarjetas Estilo Glassmorphism */
+    .metric-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
         padding: 20px;
-        border: 1px solid #222;
-        border-left: 5px solid #00d4ff;
+        backdrop-filter: blur(10px);
+        margin-bottom: 20px;
     }
+
+    .plan-header {
+        color: #00d4ff; font-weight: bold; font-size: 0.9rem;
+        text-transform: uppercase; letter-spacing: 2px;
+    }
+
+    /* Botones Pro */
     .stButton>button {
-        width: 100%; border-radius: 12px; height: 3.5em;
+        width: 100%; border-radius: 12px; height: 3.8em;
         background: linear-gradient(90deg, #00d4ff, #0080ff);
         color: #000; font-weight: bold; border: none;
+        transition: 0.4s; font-family: 'Inter', sans-serif;
+    }
+    .stButton>button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0px 10px 20px rgba(0, 212, 255, 0.3);
     }
     </style>
     """, unsafe_allow_html=True)
 
+# --- ENCABEZADO ---
 st.markdown('<h1 class="main-title">MORPHAI</h1>', unsafe_allow_html=True)
+st.markdown('<p style="text-align:center; color:#555; margin-bottom:40px;">FUTURE OF PHYSICAL PERFORMANCE</p>', unsafe_allow_html=True)
 
-# --- SISTEMA DE DATOS ---
+# --- GESTIÓN DE DATOS ---
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     df_historial = conn.read(worksheet="DATOS", ttl=0)
 except:
-    # Datos de ejemplo por si falla la conexión
-    df_historial = pd.DataFrame([
-        {"Fecha": "01/02/2026", "Ejercicio": "Press Banca", "Peso": 60},
-        {"Fecha": "02/02/2026", "Ejercicio": "Press Banca", "Peso": 62.5}
-    ])
+    df_historial = pd.DataFrame(columns=["Fecha", "Ejercicio", "Peso", "Reps"])
 
-# --- MEMORIA DEL SISTEMA (Persistencia) ---
 if 'plan_ia' not in st.session_state:
-    st.session_state['plan_ia'] = "⚠️ NO HAY PLAN CARGADO.<br>Ve a la pestaña 🧠 PLANIFICAR."
+    st.session_state['plan_ia'] = "⚠️ NO DATA DETECTED.<br>Configura tu protocolo en PLANIFICAR."
 
-tab1, tab2, tab3, tab4 = st.tabs(["⚡ ENTRENAR", "🧠 PLANIFICAR", "📊 PROGRESO", "🧮 1RM"])
+# --- NAVEGACIÓN TÁCTIL ---
+tabs = st.tabs(["⚡ SESIÓN", "🧠 CEREBRO", "📈 ANALYTICS", "🧮 1RM"])
 
-# --- TAB 1: ENTRENAR ---
-with tab1:
-    # Aquí estaba el error de la f-string, ya está arreglado:
+with tabs[0]: # SESIÓN
     st.markdown(f"""
-    <div class="pizarra">
-        <p style="color: #00d4ff; margin-bottom: 5px;">📍 PLAN ACTUAL:</p>
-        <div style="font-size: 1.1rem; line-height: 1.4;">
-            {st.session_state['plan_ia']}
-        </div>
+    <div class="metric-card">
+        <p class="plan-header">📍 Protocolo Activo</p>
+        <div style="font-size: 1.1rem; line-height: 1.6;">{st.session_state['plan_ia']}</div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.subheader("📝 Registrar Serie")
-    with st.form("form_final", clear_on_submit=True):
-        c1, c2 = st.columns([2, 1])
-        ejer = c1.text_input("Ejercicio")
-        peso = c2.number_input("Kg", 0.0, 500.0, 40.0)
-        reps = st.number_input("Reps", 1, 100, 10)
-        if st.form_submit_button("GUARDAR EN EL NÚCLEO"):
-            st.toast("Serie guardada temporalmente")
+    with st.expander("📝 REGISTRAR RENDIMIENTO"):
+        with st.form("pro_form", clear_on_submit=True):
+            col1, col2 = st.columns([2, 1])
+            ejer = col1.text_input("Ejercicio", placeholder="Ej: Press Militar")
+            peso = col2.number_input("Kg", 0.0, 500.0, 60.0)
+            reps = st.slider("Repeticiones", 1, 30, 10)
+            if st.form_submit_button("SINCRONIZAR SERIE"):
+                st.toast("Dato enviado al núcleo 🧬")
 
-# --- TAB 2: PLANIFICAR (Generador) ---
-with tab2:
-    st.write("### 🧬 Protocolos Disponibles")
-    col1, col2 = st.columns(2)
-    
-    if col1.button("INSTALAR ARNOLD SPLIT"):
-        st.session_state['plan_ia'] = "<b>ARNOLD SPLIT:</b><br>- L/J: Pecho & Espalda<br>- M/V: Hombros & Brazos<br>- X/S: Piernas"
-        st.rerun()
-        
-    if col2.button("INSTALAR PPL"):
-        st.session_state['plan_ia'] = "<b>PUSH/PULL/LEGS:</b><br>- Empuje (Push)<br>- Tracción (Pull)<br>- Pierna (Legs)"
-        st.rerun()
+with tabs[1]: # CEREBRO (Generador)
+    st.markdown("### 🧬 Generador de Morfosis")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("INSTALAR ARNOLD SPLIT"):
+            st.session_state['plan_ia'] = "<b>ARNOLD PROTOCOL:</b><br>• Pecho/Espalda<br>• Hombro/Brazo<br>• Pierna"
+            st.rerun()
+    with c2:
+        if st.button("INSTALAR PPL"):
+            st.session_state['plan_ia'] = "<b>PUSH PULL LEGS:</b><br>• Empuje<br>• Tracción<br>• Tren Inferior"
+            st.rerun()
 
-# --- TAB 3: PROGRESO (Gráfico que no desaparece) ---
-with tab3:
-    st.subheader("📈 Análisis de Evolución")
+with tabs[2]: # ANALYTICS
     if not df_historial.empty:
-        ejer_sel = st.selectbox("Selecciona Ejercicio", df_historial["Ejercicio"].unique())
-        df_plot = df_historial[df_historial["Ejercicio"] == ejer_sel]
-        
-        # Gráfico Pro de Plotly
-        fig = px.line(df_plot, x="Fecha", y="Peso", markers=True, 
-                     title=f"Progreso en {ejer_sel}",
-                     template="plotly_dark")
-        fig.update_traces(line_color='#00d4ff')
+        ejer_sel = st.selectbox("Analizar Evolución", df_historial["Ejercicio"].unique())
+        fig = px.line(df_historial[df_historial["Ejercicio"]==ejer_sel], 
+                     x="Fecha", y="Peso", markers=True, template="plotly_dark")
+        fig.update_traces(line_color='#00d4ff', marker_color='#ffffff')
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("Esperando datos para generar gráficas...")
+        st.info("Sin registros detectados en la nube.")
 
-# --- TAB 4: 1RM ---
-with tab4:
-    st.subheader("Calculadora de Potencia")
-    ca, cb = st.columns(2)
-    p = ca.number_input("Peso", 1.0, 500.0, 80.0, key="ca")
-    r = cb.number_input("Reps", 1, 20, 5, key="cb")
-    rm = p * (1 + 0.0333 * r)
-    st.metric("1RM ESTIMADO", f"{round(rm, 1)} KG")
+with tabs[3]: # 1RM
+    st.markdown("### Calculadora de Potencia")
+    px1 = st.number_input("Peso Máximo", 1.0, 500.0, 100.0)
+    rx1 = st.number_input("Reps al Fallo", 1, 15, 5)
+    rm_calc = px1 * (1 + 0.0333 * rx1)
+    st.markdown(f"""<div class="metric-card" style="text-align:center;">
+    <h1 style="color:#00d4ff; margin:0;">{round(rm_calc, 1)} KG</h1>
+    <p style="color:#666;">CAPACIDAD MÁXIMA TEÓRICA</p></div>""", unsafe_allow_html=True)
