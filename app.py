@@ -1,4 +1,4 @@
-himport streamlit as st
+import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
@@ -22,6 +22,11 @@ st.markdown("""
     .record-card {
         background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 128, 255, 0.1));
         border: 1px solid #00d4ff; border-radius: 15px; padding: 20px; text-align: center;
+    }
+    .glass-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 15px; padding: 20px; margin-bottom: 20px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -71,7 +76,7 @@ tabs = st.tabs(["⚡ ENTRENAR", "🧠 PLANIFICAR", "🏆 RÉCORDS", "📊 ANALYT
 
 # --- TAB 1: ENTRENAR ---
 with tabs[0]:
-    st.info(f"Modo: {especialidad} | Plan: {st.session_state['plan_activo']}")
+    st.markdown(f'<div class="glass-card"><b>PLAN:</b> {st.session_state["plan_activo"]}</div>', unsafe_allow_html=True)
     
     with st.form("registro_form", clear_on_submit=True):
         if especialidad == "🏋️ Gym/Pesas":
@@ -88,7 +93,7 @@ with tabs[0]:
                 if ejer not in st.session_state['records_personales'] or p > st.session_state['records_personales'][ejer]:
                     st.session_state['records_personales'][ejer] = p
                     st.balloons()
-                    st.success(f"🎊 ¡NUEVO RÉCORD PERSONAL EN {ejer.upper()}!")
+                    st.toast(f"🎊 ¡NUEVO RÉCORD EN {ejer.upper()}!")
                 
                 st.session_state['historial_sesion'].append({
                     "Fecha": datetime.now().strftime("%d/%m/%Y"),
@@ -108,17 +113,29 @@ with tabs[0]:
                 st.session_state['historial_sesion'].append({"Fecha": datetime.now().strftime("%d/%m/%Y"), "Ejercicio": "Combate", "Dato": f"{rd} rounds ({int_c})", "Tipo": "Combat"})
 
     if st.session_state['historial_sesion']:
+        st.markdown("### 📝 Sesión de hoy")
         st.dataframe(pd.DataFrame(st.session_state['historial_sesion']), use_container_width=True)
         if st.button("🚀 FINALIZAR Y GUARDAR"):
             st.session_state['historial_sesion'] = []
-            st.success("Entrenamiento guardado.")
+            st.success("Entrenamiento guardado localmente.")
             st.rerun()
 
-# --- TAB 2: RÉCORDS (HALL OF FAME) ---
+# --- TAB 2: PLANIFICAR ---
+with tabs[1]:
+    st.subheader("Estrategia de Entrenamiento")
+    col1, col2 = st.columns(2)
+    if col1.button("ACTIVAR ARNOLD SPLIT"):
+        st.session_state['plan_activo'] = "Arnold Split (Antagonistas)"
+        st.rerun()
+    if col2.button("ACTIVAR PUSH/PULL/LEGS"):
+        st.session_state['plan_activo'] = "PPL (Frecuencia 2)"
+        st.rerun()
+
+# --- TAB 3: RÉCORDS ---
 with tabs[2]:
     st.subheader("🥇 Hall of Fame")
     if st.session_state['records_personales']:
-        cols = st.columns(len(st.session_state['records_personales']))
+        cols = st.columns(3)
         for i, (ejer, peso) in enumerate(st.session_state['records_personales'].items()):
             cols[i % 3].markdown(f"""
             <div class="record-card">
@@ -127,16 +144,18 @@ with tabs[2]:
             </div>
             """, unsafe_allow_html=True)
     else:
-        st.info("Registra tus series para empezar a romper récords.")
+        st.info("Registra tus marcas para aparecer en el Hall of Fame.")
 
 # --- TAB 4: ANALYTICS ---
 with tabs[3]:
-    st.subheader("Análisis de Sobrecarga Progresiva")
+    st.subheader("Análisis de Progreso")
     if not df_global.empty:
         ejer_sel = st.selectbox("Ejercicio:", df_global["Ejercicio"].unique())
         fig = px.line(df_global[df_global["Ejercicio"] == ejer_sel], x="Fecha", y="Peso", markers=True, template="plotly_dark")
         fig.update_traces(line_color='#00d4ff')
         st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Sincroniza datos con Google Sheets para ver gráficas.")
 
 # --- TAB 5: 1RM ---
 with tabs[4]:
