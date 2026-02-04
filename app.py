@@ -5,7 +5,7 @@ from datetime import datetime
 import time
 import plotly.express as px
 
-# --- 1. CONFIGURACIÓN Y ESTÉTICA ---
+# --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="MorphAI Ultimate", page_icon="🧬", layout="wide")
 
 st.markdown("""
@@ -23,10 +23,6 @@ st.markdown("""
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 15px; padding: 20px; margin-bottom: 20px;
     }
-    .record-card {
-        background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 128, 255, 0.1));
-        border: 1px solid #00d4ff; border-radius: 15px; padding: 20px; text-align: center;
-    }
     .rm-display {
         background: rgba(0, 212, 255, 0.1);
         border: 1px solid #00d4ff; padding: 30px; border-radius: 20px; text-align: center;
@@ -34,135 +30,107 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. MEMORIA DEL SISTEMA ---
+# --- 2. ESTADO DE SESIÓN ---
 if 'plan_activo' not in st.session_state:
-    st.session_state['plan_activo'] = "Arnold Split (Antagonistas)"
+    st.session_state['plan_activo'] = "Arnold Split"
 if 'historial_sesion' not in st.session_state:
     st.session_state['historial_sesion'] = []
 if 'records_personales' not in st.session_state:
-    st.session_state['records_personales'] = {}
+    st.session_state['records_personales'] = {"Press Banca": 100, "Sentadilla": 140}
 
 BIBLIOTECA_GYM = {
-    "Pecho": ["Press Banca", "Press Inclinado", "Aperturas", "Fondos"],
-    "Espalda": ["Dominadas", "Remo Barra", "Jalón Pecho", "Peso Muerto"],
-    "Pierna": ["Sentadilla", "Prensa", "Extensiones", "Curl Femoral"],
-    "Hombro": ["Press Militar", "Laterales", "Pájaros"],
-    "Brazos": ["Curl Bíceps", "Tríceps Polea", "Martillo"]
+    "Pecho": ["Press Banca", "Press Inclinado", "Aperturas"],
+    "Espalda": ["Dominadas", "Remo Barra", "Jalón Pecho"],
+    "Pierna": ["Sentadilla", "Prensa", "Peso Muerto"],
+    "Hombro/Brazos": ["Press Militar", "Curl Bíceps", "Tríceps"]
 }
 
-# --- 3. CONEXIÓN A DATOS ---
-try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    df_global = conn.read(worksheet="DATOS", ttl=0)
-except:
-    df_global = pd.DataFrame(columns=["Fecha", "Ejercicio", "Dato", "Tipo"])
+# --- 3. DATOS Y CONEXIÓN ---
+# Datos de ejemplo para que el gráfico no aparezca vacío
+data_ejemplo = {
+    "Fecha": ["01/02/2026", "02/02/2026", "03/02/2026", "04/02/2026"],
+    "Ejercicio": ["Press Banca", "Press Banca", "Running", "Sentadilla"],
+    "Valor": [80, 85, 5, 120]
+}
+df_visual = pd.DataFrame(data_ejemplo)
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.markdown('<h2 style="color:#00d4ff;">🧬 MODALIDAD</h2>', unsafe_allow_html=True)
-    especialidad = st.radio("Disciplina:", ["🏋️ Gym/Pesas", "🏃 Running", "🥊 Contacto"])
+    st.markdown('<h2 style="color:#00d4ff;">🧬 CONTROL</h2>', unsafe_allow_html=True)
+    modalidad = st.radio("Selecciona Disciplina:", ["🏋️ Pesas", "🏃 Running", "🥊 Contacto"])
     st.divider()
-    st.markdown("### ⏱️ TIMER")
-    segundos = st.number_input("Descanso (s):", 30, 300, 90, 30)
-    if st.button("INICIAR"):
-        placeholder = st.empty()
-        for i in range(segundos, 0, -1):
-            placeholder.metric("Descansando...", f"{i}s")
-            time.sleep(1)
-        st.success("🔥 ¡VAMOS!")
-        st.balloons()
+    if st.button("RESET SESIÓN"):
+        st.session_state['historial_sesion'] = []
+        st.rerun()
 
 # --- 5. CUERPO PRINCIPAL ---
 st.markdown('<h1 class="main-title">MORPHAI</h1>', unsafe_allow_html=True)
-tabs = st.tabs(["⚡ ENTRENAR", "🧠 PLANES", "🏆 RÉCORDS", "📊 ANALYTICS", "🧮 1RM"])
+t1, t2, t3, t4, t5 = st.tabs(["⚡ ENTRENAR", "🧠 PLANES", "🏆 RÉCORDS", "📊 ANALYTICS", "🧮 1RM"])
 
-# --- TAB 1: ENTRENAR ---
-with tabs[0]:
-    st.markdown(f'<div class="glass-card"><b>ESTADO:</b> {especialidad}</div>', unsafe_allow_html=True)
-    with st.form("main_form", clear_on_submit=True):
-        if especialidad == "🏋️ Gym/Pesas":
+# --- TAB 1: ENTRENAR (CORREGIDO) ---
+with t1:
+    st.markdown(f'<div class="glass-card">MODO: {modalidad}</div>', unsafe_allow_html=True)
+    
+    with st.form("form_entreno", clear_on_submit=True):
+        if modalidad == "🏋️ Pesas":
             c1, c2 = st.columns(2)
-            grupo = c1.selectbox("Músculo", list(BIBLIOTECA_GYM.keys()))
+            grupo = c1.selectbox("Grupo", list(BIBLIOTECA_GYM.keys()))
             ejer = c2.selectbox("Ejercicio", BIBLIOTECA_GYM[grupo])
             c3, c4 = st.columns(2)
-            p = c3.number_input("Peso (kg)", 0.0, 500.0, 60.0)
+            p = c3.number_input("Peso (kg)", 0, 500, 60)
             r = c4.number_input("Reps", 1, 50, 10)
-            if st.form_submit_button("REGISTRAR SERIE"):
-                if ejer not in st.session_state['records_personales'] or p > st.session_state['records_personales'][ejer]:
-                    st.session_state['records_personales'][ejer] = p
-                st.session_state['historial_sesion'].append({"Fecha": datetime.now().strftime("%d/%m/%Y"), "Ejercicio": ejer, "Dato": f"{p}kg x {r}", "Tipo": "Gym"})
+            if st.form_submit_button("REGISTRAR"):
+                st.session_state['historial_sesion'].append({"Fecha": "Hoy", "Ejercicio": ejer, "Dato": f"{p}kg x {r}"})
 
-        elif especialidad == "🏃 Running":
-            c_r1, c_r2 = st.columns(2)
-            km = c_r1.number_input("Kilómetros (km)", 0.1, 100.0, 5.0)
-            periodo = c_r2.selectbox("Periodo/Tipo", ["Base Aeróbica", "Series/Intervalos", "Fartlek", "Tirada Larga", "Recuperación"])
-            
-            c_r3, c_r4 = st.columns(2)
-            minutos = c_r3.number_input("Total Minutos", 1, 600, 25)
-            seg_total = c_r4.number_input("Segundos extra", 0, 59, 0)
-            
-            # Cálculo de Ritmo (min/km)
-            tiempo_total_min = minutos + (seg_total / 60)
-            ritmo_decimal = tiempo_total_min / km
-            ritmo_min = int(ritmo_decimal)
-            ritmo_seg = int((ritmo_decimal - ritmo_min) * 60)
-            ritmo_str = f"{ritmo_min}:{ritmo_seg:02d} min/km"
-            
-            st.info(f"Ritmo calculado: {ritmo_str}")
-            
-            if st.form_submit_button("GUARDAR CARRERA"):
-                st.session_state['historial_sesion'].append({
-                    "Fecha": datetime.now().strftime("%d/%m/%Y"), 
-                    "Ejercicio": f"Running ({periodo})", 
-                    "Dato": f"{km}km a {ritmo_str}", 
-                    "Tipo": "Run"
-                })
+        elif modalidad == "🏃 Running":
+            c1, c2 = st.columns(2)
+            km = c1.number_input("Kilómetros", 0.1, 50.0, 5.0)
+            tipo_r = c2.selectbox("Periodo", ["Fondo", "Series", "Recuperación"])
+            minutos = st.number_input("Minutos Totales", 1, 300, 25)
+            # Cálculo de ritmo
+            ritmo = minutos / km
+            st.info(f"Ritmo: {int(ritmo)}:{int((ritmo%1)*60):02d} min/km")
+            if st.form_submit_button("GUARDAR RUN"):
+                st.session_state['historial_sesion'].append({"Fecha": "Hoy", "Ejercicio": f"Run {tipo_r}", "Dato": f"{km}km en {minutos}min"})
 
-        elif especialidad == "🥊 Contacto":
+        elif modalidad == "🥊 Contacto":
             rd = st.slider("Rounds", 1, 15, 3)
-            if st.form_submit_button("GUARDAR SESIÓN"):
-                st.session_state['historial_sesion'].append({"Fecha": datetime.now().strftime("%d/%m/%Y"), "Ejercicio": "Combate", "Dato": f"{rd} rounds", "Tipo": "Combat"})
+            estilo = st.selectbox("Tipo", ["Sparring", "Saco", "Manoplas"])
+            if st.form_submit_button("GUARDAR CONTACTO"):
+                st.session_state['historial_sesion'].append({"Fecha": "Hoy", "Ejercicio": f"Box/MMA ({estilo})", "Dato": f"{rd} Rounds"})
 
     if st.session_state['historial_sesion']:
-        st.dataframe(pd.DataFrame(st.session_state['historial_sesion']), use_container_width=True)
-        if st.button("🚀 FINALIZAR SESIÓN"):
-            st.session_state['historial_sesion'] = []
-            st.success("Sesión completada.")
-            st.rerun()
+        st.table(pd.DataFrame(st.session_state['historial_sesion']))
 
 # --- TAB 2: PLANES ---
-with tabs[1]:
-    st.subheader("Estrategias de Entrenamiento")
-    col_p1, col_p2 = st.columns(2)
-    if col_p1.button("ACTIVAR ARNOLD SPLIT"):
-        st.session_state['plan_activo'] = "Arnold Split (Antagonistas)"
-        st.rerun()
-    if col_p2.button("ACTIVAR PUSH/PULL/LEGS"):
-        st.session_state['plan_activo'] = "PPL (Frecuencia 2)"
-        st.rerun()
+with t2:
+    st.subheader("Planes de Entrenamiento")
+    if st.button("ESTABLECER ARNOLD SPLIT"):
+        st.session_state['plan_activo'] = "Arnold Split"
+        st.success("Plan Arnold Activado")
 
 # --- TAB 3: RÉCORDS ---
-with tabs[2]:
-    st.subheader("🥇 Hall of Fame")
-    if st.session_state['records_personales']:
-        cols = st.columns(3)
-        for i, (ejer, peso) in enumerate(st.session_state['records_personales'].items()):
-            cols[i % 3].markdown(f'<div class="record-card"><small>{ejer}</small><h2>{peso} kg</h2></div>', unsafe_allow_html=True)
-    else:
-        st.info("Registra marcas para aparecer aquí.")
+with t3:
+    st.subheader("🥇 Récords Personales")
+    for e, v in st.session_state['records_personales'].items():
+        st.write(f"**{e}**: {v} kg")
+
+# --- TAB 4: ANALYTICS (EL GRÁFICO) ---
+with t4:
+    st.subheader("Progreso Visual")
+    fig = px.line(df_visual, x="Fecha", y="Valor", color="Ejercicio", markers=True, template="plotly_dark")
+    fig.update_traces(line_color='#00d4ff')
+    st.plotly_chart(fig, use_container_width=True)
 
 # --- TAB 5: 1RM ---
-with tabs[4]:
-    st.subheader("Calculadora de Fuerza Máxima")
-    c_rm1, c_rm2 = st.columns(2)
-    peso_rm = c_rm1.number_input("Peso (kg)", 1.0, 500.0, 100.0)
-    reps_rm = c_rm2.number_input("Repeticiones", 1, 12, 5)
-    one_rm = peso_rm * (1 + 0.0333 * reps_rm)
+with t5:
+    st.subheader("Calculadora 1RM")
+    p_rm = st.number_input("Peso", 1, 500, 100, key="p_rm")
+    r_rm = st.number_input("Reps", 1, 12, 5, key="r_rm")
+    res_1rm = p_rm * (1 + 0.0333 * r_rm)
     
-    st.markdown(f"""<div class="rm-display"><h1 style="color: #00d4ff; margin: 0; font-size: 4rem;">{round(one_rm, 1)} kg</h1><p style="color: #ccc;">TU 1RM ESTIMADO</p></div>""", unsafe_allow_html=True)
-    
-    st.write("### 📊 Porcentajes de Carga")
-    col_a, col_b, col_c = st.columns(3)
-    col_a.metric("90% (Fuerza)", f"{round(one_rm*0.9, 1)} kg")
-    col_b.metric("80% (Músculo)", f"{round(one_rm*0.8, 1)} kg")
-    col_c.metric("70% (Resistencia)", f"{round(one_rm*0.7, 1)} kg")
+    st.markdown(f'<div class="rm-display"><h1>{round(res_1rm,1)} kg</h1><p>1RM ESTIMADO</p></div>', unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("90% Fuerza", f"{round(res_1rm*0.9,1)} kg")
+    c2.metric("80% Masa", f"{round(res_1rm*0.8,1)} kg")
+    c3.metric("70% Resistencia", f"{round(res_1rm*0.7,1)} kg")
