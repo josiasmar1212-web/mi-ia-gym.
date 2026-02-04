@@ -24,16 +24,18 @@ st.markdown("""
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 15px; padding: 20px; margin-bottom: 20px;
     }
+    .record-card {
+        background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 128, 255, 0.1));
+        border: 1px solid #00d4ff; border-radius: 15px; padding: 20px; text-align: center;
+    }
     .rm-display {
         background: rgba(0, 212, 255, 0.1);
-        border: 1px solid #00d4ff;
-        padding: 30px; border-radius: 20px; text-align: center;
-        margin-bottom: 25px;
+        border: 1px solid #00d4ff; padding: 30px; border-radius: 20px; text-align: center;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. MEMORIA Y BIBLIOTECAS ---
+# --- 2. MEMORIA DEL SISTEMA ---
 if 'plan_activo' not in st.session_state:
     st.session_state['plan_activo'] = "Arnold Split (Antagonistas)"
 if 'historial_sesion' not in st.session_state:
@@ -68,14 +70,14 @@ with st.sidebar:
         for i in range(segundos, 0, -1):
             placeholder.metric("Descansando...", f"{i}s")
             time.sleep(1)
-        st.success("🔥 ¡VAMOS!")
+        st.success("🔥 ¡DALE!")
         st.balloons()
 
 # --- 5. CUERPO PRINCIPAL ---
 st.markdown('<h1 class="main-title">MORPHAI</h1>', unsafe_allow_html=True)
 tabs = st.tabs(["⚡ ENTRENAR", "🧠 PLANES", "🏆 RÉCORDS", "📊 ANALYTICS", "🧮 1RM"])
 
-# TAB 1: ENTRENAR
+# --- TAB 1: ENTRENAR ---
 with tabs[0]:
     st.markdown(f'<div class="glass-card"><b>PLAN ACTUAL:</b> {st.session_state["plan_activo"]}</div>', unsafe_allow_html=True)
     with st.form("main_form", clear_on_submit=True):
@@ -110,7 +112,44 @@ with tabs[0]:
             st.success("Sesión completada.")
             st.rerun()
 
-# TAB 5: 1RM (TU FAVORITO)
+# --- TAB 2: PLANES ---
+with tabs[1]:
+    st.subheader("Estrategias de Entrenamiento")
+    col_p1, col_p2 = st.columns(2)
+    if col_p1.button("ACTIVAR ARNOLD SPLIT"):
+        st.session_state['plan_activo'] = "Arnold Split (Antagonistas)"
+        st.rerun()
+    if col_p2.button("ACTIVAR PUSH/PULL/LEGS"):
+        st.session_state['plan_activo'] = "PPL (Frecuencia 2)"
+        st.rerun()
+
+# --- TAB 3: RÉCORDS ---
+with tabs[2]:
+    st.subheader("🥇 Hall of Fame (Tus Marcas)")
+    if st.session_state['records_personales']:
+        cols = st.columns(3)
+        for i, (ejer, peso) in enumerate(st.session_state['records_personales'].items()):
+            cols[i % 3].markdown(f"""
+            <div class="record-card">
+                <small style="color:#00d4ff;">{ejer}</small>
+                <h2 style="margin:0;">{peso} kg</h2>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("Registra tus marcas en la pestaña de ENTRENAR para que aparezcan aquí.")
+
+# --- TAB 4: ANALYTICS ---
+with tabs[3]:
+    st.subheader("Análisis de Progreso")
+    if not df_global.empty:
+        ejer_sel = st.selectbox("Selecciona actividad:", df_global["Ejercicio"].unique())
+        fig = px.line(df_global[df_global["Ejercicio"] == ejer_sel], x="Fecha", y="Peso", markers=True, template="plotly_dark")
+        fig.update_traces(line_color='#00d4ff')
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Los gráficos aparecerán cuando sincronices datos con Google Sheets.")
+
+# --- TAB 5: 1RM ---
 with tabs[4]:
     st.subheader("Calculadora de Fuerza Máxima")
     c_rm1, c_rm2 = st.columns(2)
