@@ -59,26 +59,107 @@ def load_entries(user):
     df = pd.read_sql_query("SELECT * FROM entries WHERE user=? ORDER BY id DESC", conn, params=(user,))
     return df
 
-# --- 3. MOTOR ESTÉTICO (CSS) ---
+# --- 3. MOTOR ESTÉTICO (CSS) — Sistema "Dossier de Rendimiento" ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600&display=swap');
-    :root { --neon-green: #00ff88; --neon-blue: #00d4ff; --neon-red: #ff4b4b; --bg-black: #050505; }
-    .stApp { background-color: var(--bg-black); color: #FFFFFF; font-family: 'Inter', sans-serif; }
-    .main-title { font-family: 'Orbitron', sans-serif; color: var(--neon-green); text-align: center;
-        font-size: 3.5rem; letter-spacing: 12px; text-shadow: 0px 0px 30px rgba(0, 255, 136, 0.4); }
-    .module-container { background: rgba(20, 20, 20, 0.8); border: 1px solid rgba(0, 255, 136, 0.2);
-        border-radius: 20px; padding: 30px; margin-bottom: 25px; }
-    .timer-display { font-family: 'Orbitron'; font-size: 6.5rem; text-align: center; padding: 45px;
-        border-radius: 35px; border: 5px solid var(--neon-red); color: var(--neon-red);
-        background: rgba(255, 75, 75, 0.05); text-shadow: 0 0 20px rgba(255, 75, 75, 0.3); }
-    .work-active { border-color: var(--neon-green) !important; color: var(--neon-green) !important;
-        box-shadow: 0 0 50px rgba(0, 255, 136, 0.3); text-shadow: 0 0 20px rgba(0, 255, 136, 0.5); }
-    .ia-card { background: linear-gradient(135deg, rgba(0,255,136,0.15) 0%, rgba(0,0,0,1) 100%);
-        border: 1px solid var(--neon-green); border-radius: 20px; padding: 30px; white-space: pre-wrap; }
-    .ia-tag { color: var(--neon-green); font-family: 'Orbitron'; font-size: 1.3rem;
-        border-bottom: 1px solid rgba(0,255,136,0.3); margin-bottom: 15px; padding-bottom: 10px; }
-    .rm-giant { font-family: 'Orbitron'; font-size: 5rem; color: var(--neon-green); text-align: center; margin: 0; }
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+    :root {
+        --bg-0: #0b0f0d;
+        --bg-1: #121714;
+        --panel: #161d19;
+        --line: rgba(150, 255, 200, 0.12);
+        --signal: #35d68c;
+        --signal-soft: rgba(53, 214, 140, 0.12);
+        --amber: #f5a623;
+        --amber-soft: rgba(245, 166, 35, 0.10);
+        --text-hi: #eef2f0;
+        --text-mid: #9aa8a2;
+        --text-low: #5e6b66;
+    }
+
+    .stApp { background: var(--bg-0); color: var(--text-hi); font-family: 'Inter', sans-serif; }
+    h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
+
+    /* Cabecera de bienvenida */
+    .hero-card {
+        background: linear-gradient(160deg, var(--bg-1) 0%, var(--panel) 100%);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 28px 32px;
+        margin-bottom: 28px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+    .hero-eyebrow {
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--signal);
+        font-size: 0.75rem;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+    }
+    .hero-title {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 1.9rem;
+        font-weight: 700;
+        color: var(--text-hi);
+        margin: 0;
+    }
+    .hero-sub { color: var(--text-mid); font-size: 0.92rem; margin-top: 4px; }
+    .hero-badge {
+        font-family: 'JetBrains Mono', monospace;
+        background: var(--signal-soft);
+        border: 1px solid var(--line);
+        color: var(--signal);
+        padding: 10px 16px;
+        border-radius: 10px;
+        font-size: 0.8rem;
+        text-align: right;
+        line-height: 1.5;
+    }
+
+    /* Contenedores de módulo */
+    .module-container {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 26px;
+        margin-bottom: 22px;
+    }
+
+    /* Temporizador táctico */
+    .timer-display {
+        font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 5.5rem;
+        text-align: center; padding: 40px; border-radius: 18px; border: 2px solid var(--amber);
+        color: var(--amber); background: var(--amber-soft); letter-spacing: 4px;
+    }
+    .work-active {
+        border-color: var(--signal) !important; color: var(--signal) !important;
+        background: var(--signal-soft) !important;
+    }
+
+    /* Tarjeta de IA */
+    .ia-card {
+        background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--signal);
+        border-radius: 14px; padding: 26px; white-space: pre-wrap; color: var(--text-hi); line-height: 1.6;
+    }
+    .ia-tag {
+        color: var(--signal); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;
+        letter-spacing: 1.5px; text-transform: uppercase; border-bottom: 1px solid var(--line);
+        margin-bottom: 14px; padding-bottom: 10px;
+    }
+
+    .rm-giant {
+        font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 3.6rem;
+        color: var(--signal); text-align: center; margin: 0;
+    }
+
+    /* Sidebar */
+    section[data-testid="stSidebar"] { background: var(--bg-1); border-right: 1px solid var(--line); }
     </style>
 """, unsafe_allow_html=True)
 
@@ -107,13 +188,25 @@ with st.sidebar:
     ])
 
     st.divider()
-    st.caption("Tus datos ahora se guardan de forma permanente (SQLite) por usuario/operador.")
+    st.caption("🔒 Tus datos se guardan de forma permanente y separados por operador.")
 
 USER = st.session_state.user["name"]
 
-# --- 5. INTERFAZ PRINCIPAL ---
-st.markdown('<h1 class="main-title">MORPHAI NEURAL ENGINE</h1>', unsafe_allow_html=True)
-st.markdown(f'<p style="text-align:center; opacity:0.6; letter-spacing:4px;">ACTIVE OPERATOR: {USER} | v17.0</p>', unsafe_allow_html=True)
+# --- 5. CABECERA / BIENVENIDA ---
+_df_home = load_entries(USER)
+_total = len(_df_home)
+_ultima = _df_home.iloc[0]["fecha"] if _total > 0 else "Sin registros aún"
+
+st.markdown(f"""
+<div class="hero-card">
+    <div>
+        <div class="hero-eyebrow">MorphAI · Panel de rendimiento</div>
+        <p class="hero-title">Hola, {USER.title()} 👋</p>
+        <p class="hero-sub">Elige un módulo en el menú lateral — registra un set, corre el reloj de rounds, o pide a la IA que mejore tu rutina. Todo se guarda solo.</p>
+    </div>
+    <div class="hero-badge">SESIONES REGISTRADAS: {_total}<br>ÚLTIMA ACTIVIDAD: {_ultima}</div>
+</div>
+""", unsafe_allow_html=True)
 
 # --- MÓDULO: FUERZA ---
 if system_mode == "🏋️ FUERZA & LOGÍSTICA":
@@ -269,7 +362,7 @@ elif system_mode == "📊 ANALÍTICA GLOBAL":
         st.divider()
         st.dataframe(df, use_container_width=True)
     else:
-        st.warning("Aún no hay datos guardados para este operador.")
+        st.info("Todavía no hay datos que graficar. Registra tu primer set en '🏋️ Fuerza & Logística' o tu primera carrera en '🏃 Running Telemetry' — aparecerá aquí al instante.")
 
 # --- FOOTER ---
 st.markdown("---")
