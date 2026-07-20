@@ -43,10 +43,30 @@ def init_db():
             extra TEXT
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user TEXT,
+            fecha TEXT,
+            peso REAL,
+            grasa REAL,
+            nota TEXT
+        )
+    """)
     conn.commit()
     return conn
 
 conn = init_db()
+
+def save_metric(user, peso, grasa, nota):
+    conn.execute(
+        "INSERT INTO metrics (user, fecha, peso, grasa, nota) VALUES (?,?,?,?,?)",
+        (user, datetime.now().strftime("%Y-%m-%d %H:%M"), peso, grasa, nota)
+    )
+    conn.commit()
+
+def load_metrics(user):
+    return pd.read_sql_query("SELECT * FROM metrics WHERE user=? ORDER BY id", conn, params=(user,))
 
 def save_entry(user, tipo, actividad, valor, meta, extra):
     conn.execute(
@@ -164,25 +184,51 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 DB_EXERCISES = {
-    "Fuerza": ["Press Banca", "Sentadilla Barra", "Peso Muerto Sumó", "Press Militar", "Dominadas Pro", "Remo Pendlay"],
-    "Explosividad": ["Saltos al Cajón", "Landmine Punch", "Medball Slam", "Burpee Pliométrico", "Snatch con Mancuerna", "Sprints Potencia"],
-    "Running": ["Carrera Continua", "Series VO2 Max", "Fartlek Neural", "Umbral Lactato"]
+    "Pecho": ["Press Banca Plano", "Press Banca Inclinado", "Press Mancuernas", "Aperturas Polea", "Fondos en Paralelas", "Press Declinado"],
+    "Espalda": ["Dominadas Pro", "Remo Pendlay", "Remo con Mancuerna", "Jalón al Pecho", "Peso Muerto Convencional", "Remo en T"],
+    "Piernas": ["Sentadilla Barra", "Peso Muerto Sumó", "Prensa 45°", "Zancadas Búlgaras", "Curl Femoral", "Extensión Cuádriceps", "Hip Thrust"],
+    "Hombros": ["Press Militar", "Elevaciones Laterales", "Pájaros Posteriores", "Press Arnold", "Face Pull"],
+    "Brazos": ["Curl Barra Z", "Curl Martillo", "Press Francés", "Fondos Tríceps", "Curl Predicador"],
+    "Core": ["Plancha Frontal", "Rueda Abdominal", "Elevación de Piernas", "Russian Twist", "Plancha Lateral"],
+    "Explosividad": ["Saltos al Cajón", "Landmine Punch", "Medball Slam", "Burpee Pliométrico", "Snatch con Mancuerna", "Sprints Potencia", "Kettlebell Swing"],
+    "Calistenia": ["Muscle Up", "Pistol Squat", "Handstand Push-up", "Front Lever (progresión)", "Human Flag (progresión)"],
+    "Running": ["Carrera Continua", "Series VO2 Max", "Fartlek Neural", "Umbral Lactato", "Trote Regenerativo", "Cuestas Cortas"],
+    "Movilidad": ["Movilidad de Cadera", "Movilidad Torácica", "Estiramiento Isquiotibiales", "Foam Rolling Espalda", "Movilidad de Hombro", "Respiración Diafragmática"]
+}
+
+# Grupos musculares principales por categoría (para la biblioteca de ejercicios)
+DB_EXERCISE_INFO = {
+    "Sentadilla Barra": ("Cuádriceps, glúteos, core", "Barra libre en espalda alta, baja controlando la rodilla en línea con el pie."),
+    "Peso Muerto Sumó": ("Glúteos, isquiotibiales, espalda baja", "Postura ancha, espalda neutra, empuja el piso con los talones."),
+    "Peso Muerto Convencional": ("Cadena posterior completa", "Barra pegada a la tibia, cadera arriba antes que el pecho."),
+    "Press Banca Plano": ("Pectoral, tríceps, hombro anterior", "Escápulas retraídas, barra baja al esternón con control."),
+    "Dominadas Pro": ("Dorsal ancho, bíceps", "Agarre prono, tira con el codo hacia la cadera."),
+    "Press Militar": ("Hombro, tríceps, core", "De pie, evita arquear la espalda baja al empujar."),
+    "Hip Thrust": ("Glúteo mayor", "Espalda apoyada en banco, empuje con talones, aprieta glúteo arriba."),
+    "Muscle Up": ("Dorsal, tríceps, core", "Transición explosiva de dominada a fondo, requiere buena base de fuerza en ambos."),
+    "Kettlebell Swing": ("Cadena posterior, potencia de cadera", "El impulso viene de la cadera, no de los brazos."),
+    "Plancha Frontal": ("Core, estabilidad lumbar", "Cuerpo en línea recta, glúteos y abdomen activos."),
+    "Movilidad de Cadera": ("Flexores de cadera, rotadores", "Series de 90/90 y círculos controlados, sin rebotes."),
 }
 
 if 'user' not in st.session_state:
     st.session_state['user'] = {"name": "JOSIAS MARTINEZ", "weight": 80, "height": 180}
+if 'metrics' not in st.session_state:
+    st.session_state['metrics'] = []
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.markdown('<h1 style="font-family:Orbitron; color:#00ff88; letter-spacing:3px;">MORPHAI OS</h1>', unsafe_allow_html=True)
-    st.image("https://cdn-icons-png.flaticon.com/512/847/847969.png", width=90)
+    st.markdown('<h1 style="font-family:Space Grotesk; color:#35d68c; letter-spacing:2px; font-size:1.6rem;">MORPHAI OS</h1>', unsafe_allow_html=True)
     st.session_state.user["name"] = st.text_input("OPERADOR:", st.session_state.user["name"]).upper()
 
     st.divider()
     system_mode = st.radio("SISTEMA:", [
-        "🏋️ FUERZA & LOGÍSTICA",
+        "🏋️ ENTRENAMIENTO DE FUERZA",
         "🏃 RUNNING TELEMETRY",
         "🥊 COMBATE & EXPLOSIVIDAD",
+        "🧘 MOVILIDAD & RECUPERACIÓN",
+        "📚 BIBLIOTECA DE EJERCICIOS",
+        "🎯 OBJETIVOS & RACHA",
         "🤖 AI ROUTINE COACH",
         "📊 ANALÍTICA GLOBAL"
     ])
@@ -208,20 +254,25 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- MÓDULO: FUERZA ---
-if system_mode == "🏋️ FUERZA & LOGÍSTICA":
+# --- MÓDULO: FUERZA (todos los grupos musculares) ---
+if system_mode == "🏋️ ENTRENAMIENTO DE FUERZA":
+    grupos_fuerza = ["Pecho", "Espalda", "Piernas", "Hombros", "Brazos", "Core", "Calistenia"]
     c1, c2 = st.columns([1, 1])
     with c1:
-        st.markdown("### 📥 Registro de Carga")
+        st.markdown("### 📥 Registro de Set")
+        grupo = st.selectbox("Grupo muscular", grupos_fuerza)
         with st.form("f_gym", clear_on_submit=True):
-            ejer = st.selectbox("Ejercicio", DB_EXERCISES["Fuerza"])
+            ejer = st.selectbox("Ejercicio", DB_EXERCISES[grupo])
             c_p, c_r = st.columns(2)
-            peso = c_p.number_input("Carga (kg)", 0.0, 500.0, 100.0)
-            reps = c_r.number_input("Reps", 1, 50, 5)
+            peso = c_p.number_input("Carga (kg)", 0.0, 500.0, 40.0)
+            reps = c_r.number_input("Reps", 1, 50, 10)
             rpe = st.slider("Intensidad (RPE)", 1, 10, 8)
             if st.form_submit_button("REGISTRAR SET"):
-                save_entry(USER, "Fuerza", ejer, peso * reps, f"{peso}kg x {reps}", f"RPE {rpe}")
-                st.success("Set guardado permanentemente.")
+                save_entry(USER, f"Fuerza-{grupo}", ejer, peso * reps, f"{peso}kg x {reps}", f"RPE {rpe}")
+                st.success(f"Set de {ejer} guardado.")
+        info = DB_EXERCISE_INFO.get(ejer)
+        if info:
+            st.caption(f"💡 **Trabaja:** {info[0]} — {info[1]}")
     with c2:
         st.markdown("### 🧮 Estimación 1RM (Algoritmo Brzycki)")
         p_rm = st.number_input("Peso para cálculo", 1.0, 500.0, 100.0)
@@ -229,8 +280,8 @@ if system_mode == "🏋️ FUERZA & LOGÍSTICA":
         res_rm = p_rm / (1.0278 - (0.0278 * r_rm))
         st.markdown(f'<p class="rm-giant">{round(res_rm, 1)} KG</p>', unsafe_allow_html=True)
         st.divider()
-        st.write("**Zonas de Poder:**")
-        st.write(f"90% (Fuerza): {round(res_rm*0.9, 1)}kg | 80% (Masa): {round(res_rm*0.8, 1)}kg")
+        st.write("**Zonas de intensidad sugeridas:**")
+        st.write(f"🔴 95% (Máxima): {round(res_rm*0.95,1)}kg · 🟠 85% (Fuerza): {round(res_rm*0.85,1)}kg · 🟢 70% (Hipertrofia): {round(res_rm*0.7,1)}kg")
 
 # --- MÓDULO: RUNNING ---
 elif system_mode == "🏃 RUNNING TELEMETRY":
@@ -279,6 +330,94 @@ elif system_mode == "🥊 COMBATE & EXPLOSIVIDAD":
         if st.form_submit_button("REGISTRAR POTENCIA"):
             save_entry(USER, "Combate", ej_ex, reps_ex, f"{reps_ex} reps", f"{lastre}kg Lastre")
             st.success("Registro guardado permanentemente.")
+
+# --- MÓDULO: MOVILIDAD & RECUPERACIÓN ---
+elif system_mode == "🧘 MOVILIDAD & RECUPERACIÓN":
+    st.markdown("### 🧘 Sesión de Movilidad")
+    st.caption("La recuperación también es entrenamiento. Registra tus sesiones de movilidad y recuperación activa.")
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        with st.form("f_mov", clear_on_submit=True):
+            mov = st.selectbox("Ejercicio de movilidad", DB_EXERCISES["Movilidad"])
+            dur = st.slider("Duración (minutos)", 1, 60, 10)
+            sensacion = st.select_slider("Sensación al terminar", options=["Tenso", "Normal", "Suelto", "Óptimo"])
+            if st.form_submit_button("REGISTRAR SESIÓN"):
+                save_entry(USER, "Movilidad", mov, dur, f"{dur} min", sensacion)
+                st.success(f"Sesión de {mov} guardada.")
+        info = DB_EXERCISE_INFO.get(mov)
+        if info:
+            st.caption(f"💡 **Enfoque:** {info[0]} — {info[1]}")
+    with c2:
+        st.markdown("#### 🔄 Rutina rápida sugerida (5 min)")
+        st.write("1. Movilidad de Cadera — 60s por lado")
+        st.write("2. Movilidad Torácica — 60s")
+        st.write("3. Estiramiento Isquiotibiales — 60s por lado")
+        st.write("4. Movilidad de Hombro — 60s")
+        st.write("5. Respiración Diafragmática — 60s")
+        st.info("Ideal antes de entrenar o como cierre de un día de descanso.")
+
+# --- MÓDULO: BIBLIOTECA DE EJERCICIOS ---
+elif system_mode == "📚 BIBLIOTECA DE EJERCICIOS":
+    st.markdown("### 📚 Biblioteca de Ejercicios")
+    st.caption("Consulta técnica y grupo muscular de cada ejercicio disponible en la app.")
+    categorias = list(DB_EXERCISES.keys())
+    cat_sel = st.selectbox("Categoría", categorias)
+    busqueda = st.text_input("🔍 Buscar ejercicio por nombre")
+
+    lista = DB_EXERCISES[cat_sel]
+    if busqueda:
+        lista = [e for e in lista if busqueda.lower() in e.lower()]
+
+    if not lista:
+        st.info("No se encontraron ejercicios con ese nombre en esta categoría.")
+    for ej in lista:
+        info = DB_EXERCISE_INFO.get(ej, ("Consulta con tu entrenador", "Aún no hay descripción técnica cargada para este ejercicio."))
+        with st.container():
+            st.markdown(f"**{ej}**")
+            st.caption(f"🎯 Grupo: {info[0]}")
+            st.caption(f"📝 Técnica: {info[1]}")
+            st.divider()
+
+# --- MÓDULO: OBJETIVOS & RACHA ---
+elif system_mode == "🎯 OBJETIVOS & RACHA":
+    st.markdown("### 🎯 Objetivos & Racha")
+    df_all = load_entries(USER)
+
+    fechas = pd.to_datetime(df_all["fecha"]).dt.date.unique() if not df_all.empty else []
+    racha = 0
+    if len(fechas) > 0:
+        dia = datetime.now().date()
+        fechas_set = set(fechas)
+        while dia in fechas_set:
+            racha += 1
+            dia = dia.fromordinal(dia.toordinal() - 1)
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("🔥 Racha actual", f"{racha} días")
+    c2.metric("📦 Sesiones totales", len(df_all))
+    meta_semanal = st.number_input("Meta semanal (sesiones)", 1, 14, 4)
+    hoy = datetime.now().date()
+    semana = [d for d in fechas if (hoy - d).days < 7]
+    c3.metric("✅ Esta semana", f"{len(semana)}/{meta_semanal}")
+
+    st.divider()
+    st.markdown("### ⚖️ Registro corporal")
+    with st.form("f_metric", clear_on_submit=True):
+        cm1, cm2, cm3 = st.columns(3)
+        peso_m = cm1.number_input("Peso (kg)", 30.0, 250.0, float(st.session_state.user["weight"]))
+        grasa_m = cm2.number_input("% Grasa corporal (opcional)", 0.0, 60.0, 0.0)
+        nota_m = cm3.text_input("Nota", "")
+        if st.form_submit_button("GUARDAR MEDICIÓN"):
+            save_metric(USER, peso_m, grasa_m, nota_m)
+            st.success("Medición guardada.")
+
+    df_metrics = load_metrics(USER)
+    if not df_metrics.empty:
+        fig_m = px.line(df_metrics, x="fecha", y="peso", markers=True, template="plotly_dark", title="Evolución de peso corporal")
+        fig_m.update_traces(line_color="#35d68c")
+        st.plotly_chart(fig_m, use_container_width=True)
+    else:
+        st.info("Registra tu primera medición para ver tu evolución de peso aquí.")
 
 # --- MÓDULO: AI ROUTINE COACH (IA REAL) ---
 elif system_mode == "🤖 AI ROUTINE COACH":
