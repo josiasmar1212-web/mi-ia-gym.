@@ -273,6 +273,20 @@ if system_mode == "🏋️ ENTRENAMIENTO DE FUERZA":
         info = DB_EXERCISE_INFO.get(ejer)
         if info:
             st.caption(f"💡 **Trabaja:** {info[0]} — {info[1]}")
+
+        # Historial y PR del ejercicio seleccionado
+        st.divider()
+        st.markdown(f"#### 📜 Historial — {ejer}")
+        df_ejer = load_entries(USER)
+        df_ejer = df_ejer[df_ejer["actividad"] == ejer] if not df_ejer.empty else df_ejer
+        if not df_ejer.empty:
+            pr = df_ejer["valor"].max()
+            pr_row = df_ejer[df_ejer["valor"] == pr].iloc[0]
+            st.metric("🏆 Mejor volumen registrado (carga × reps)", f"{pr:.0f}", help=pr_row["meta"])
+            st.dataframe(df_ejer[["fecha", "meta", "extra"]].head(5), use_container_width=True, hide_index=True)
+        else:
+            st.caption("Aún no tienes sets registrados de este ejercicio. Este será tu primer PR.")
+
     with c2:
         st.markdown("### 🧮 Estimación 1RM (Algoritmo Brzycki)")
         p_rm = st.number_input("Peso para cálculo", 1.0, 500.0, 100.0)
@@ -282,6 +296,14 @@ if system_mode == "🏋️ ENTRENAMIENTO DE FUERZA":
         st.divider()
         st.write("**Zonas de intensidad sugeridas:**")
         st.write(f"🔴 95% (Máxima): {round(res_rm*0.95,1)}kg · 🟠 85% (Fuerza): {round(res_rm*0.85,1)}kg · 🟢 70% (Hipertrofia): {round(res_rm*0.7,1)}kg")
+
+        st.divider()
+        st.markdown("#### 🔥 Series de calentamiento sugeridas")
+        st.write(f"1. Barra vacía × 10 reps")
+        st.write(f"2. {round(res_rm*0.4,1)}kg × 8 reps")
+        st.write(f"3. {round(res_rm*0.6,1)}kg × 5 reps")
+        st.write(f"4. {round(res_rm*0.8,1)}kg × 2 reps")
+        st.caption("Progresión clásica antes de tu serie de trabajo — sube de intensidad, baja el volumen.")
 
 # --- MÓDULO: RUNNING ---
 elif system_mode == "🏃 RUNNING TELEMETRY":
@@ -293,26 +315,71 @@ elif system_mode == "🏃 RUNNING TELEMETRY":
             dist = st.number_input("Distancia (km)", 0.1, 100.0, 5.0)
             m_r = st.number_input("Minutos", 1, 500, 25)
             hr = st.slider("BPM Medio", 60, 220, 145)
+            peso_run = st.session_state.user.get("weight", 75)
             if st.form_submit_button("GUARDAR RUN"):
                 pace = m_r / dist
                 pace_str = f"{int(pace)}:{int((pace%1)*60):02d} min/km"
                 save_entry(USER, "Running", tipo_r, dist, pace_str, f"{hr} BPM")
                 st.success("Carrera guardada permanentemente.")
+
+        st.divider()
+        st.markdown("#### 📜 Últimas carreras")
+        df_run = load_entries(USER)
+        df_run = df_run[df_run["tipo"] == "Running"] if not df_run.empty else df_run
+        if not df_run.empty:
+            st.dataframe(df_run[["fecha", "actividad", "valor", "meta", "extra"]].head(5)
+                         .rename(columns={"valor": "km", "meta": "pace", "extra": "BPM"}),
+                         use_container_width=True, hide_index=True)
+        else:
+            st.caption("Aún no registras carreras. La primera aparecerá aquí.")
+
     with c_run2:
-        st.info("Pace estimado calculado automáticamente. (Imagen decorativa retirada por enlace roto.)")
+        st.markdown("### 📐 Zonas de ritmo (Karvonen simplificado)")
+        pb_min = st.number_input("Tu mejor tiempo en 5K (minutos)", 10.0, 60.0, 25.0)
+        pb_pace = pb_min / 5.0
+        st.write(f"**Pace de referencia (5K):** {int(pb_pace)}:{int((pb_pace%1)*60):02d} min/km")
+        st.divider()
+        zonas = {
+            "🟢 Z1 Recuperación": pb_pace * 1.4,
+            "🔵 Z2 Base aeróbica": pb_pace * 1.25,
+            "🟡 Z3 Tempo": pb_pace * 1.1,
+            "🟠 Z4 Umbral": pb_pace * 1.03,
+            "🔴 Z5 VO2 Max": pb_pace * 0.95,
+        }
+        for zona, p in zonas.items():
+            st.write(f"{zona}: {int(p)}:{int((p%1)*60):02d} min/km")
+
+        st.divider()
+        cal = round(dist * peso_run * 1.036) if 'dist' in locals() else 0
+        st.metric("🔥 Calorías estimadas (última distancia ingresada)", f"{cal} kcal")
+        st.caption("Estimación aproximada (MET running ≈ 1.036 kcal/kg/km), no reemplaza un medidor real.")
 
 # --- MÓDULO: COMBATE & EXPLOSIVIDAD ---
 elif system_mode == "🥊 COMBATE & EXPLOSIVIDAD":
     st.subheader("⏱️ Temporizador Táctico")
+
+    preset = st.radio("Preset rápido", ["Personalizado", "Tabata Clásico (8x20/10)", "Boxeo Amateur (3x180/60)", "HIIT Largo (5x240/60)"], horizontal=True)
+    presets_map = {
+        "Tabata Clásico (8x20/10)": (8, 20/60, 10),
+        "Boxeo Amateur (3x180/60)": (3, 3, 60),
+        "HIIT Largo (5x240/60)": (5, 4, 60),
+    }
+
     t_c1, t_c2, t_c3 = st.columns(3)
-    rds = t_c1.number_input("Rounds", 1, 15, 3)
-    w_t = t_c2.number_input("Trabajo (min)", 1, 5, 3)
-    r_t = t_c3.number_input("Descanso (seg)", 10, 60, 30)
+    if preset in presets_map:
+        d_rds, d_wt, d_rt = presets_map[preset]
+        rds = t_c1.number_input("Rounds", 1, 15, d_rds)
+        w_t = t_c2.number_input("Trabajo (min)", 0.1, 5.0, float(d_wt))
+        r_t = t_c3.number_input("Descanso (seg)", 5, 90, d_rt)
+    else:
+        rds = t_c1.number_input("Rounds", 1, 15, 3)
+        w_t = t_c2.number_input("Trabajo (min)", 0.1, 5.0, 3.0)
+        r_t = t_c3.number_input("Descanso (seg)", 5, 90, 30)
 
     if st.button("🔔 INICIAR ROUNDS"):
         ph = st.empty()
         for r in range(1, rds + 1):
-            for t in range(w_t * 60, 0, -1):
+            for t in range(int(w_t * 60), 0, -1):
                 ph.markdown(f'<div class="timer-display work-active">ROUND {r}<br>{t//60:02d}:{t%60:02d}</div>', unsafe_allow_html=True)
                 time.sleep(1)
             if r < rds:
@@ -320,6 +387,7 @@ elif system_mode == "🥊 COMBATE & EXPLOSIVIDAD":
                     ph.markdown(f'<div class="timer-display">REST<br>00:{t:02d}</div>', unsafe_allow_html=True)
                     time.sleep(1)
         ph.success("COMBATE FINALIZADO")
+        save_entry(USER, "Combate-Rounds", preset, rds, f"{rds} rounds", f"{w_t}min trabajo / {r_t}s desc.")
 
     st.divider()
     st.subheader("⚡ Biblioteca de Explosividad")
@@ -330,6 +398,12 @@ elif system_mode == "🥊 COMBATE & EXPLOSIVIDAD":
         if st.form_submit_button("REGISTRAR POTENCIA"):
             save_entry(USER, "Combate", ej_ex, reps_ex, f"{reps_ex} reps", f"{lastre}kg Lastre")
             st.success("Registro guardado permanentemente.")
+
+    df_comb = load_entries(USER)
+    df_comb = df_comb[df_comb["tipo"].str.startswith("Combate")] if not df_comb.empty else df_comb
+    if not df_comb.empty:
+        st.markdown("#### 📜 Historial reciente")
+        st.dataframe(df_comb[["fecha", "actividad", "meta", "extra"]].head(5), use_container_width=True, hide_index=True)
 
 # --- MÓDULO: MOVILIDAD & RECUPERACIÓN ---
 elif system_mode == "🧘 MOVILIDAD & RECUPERACIÓN":
@@ -359,24 +433,41 @@ elif system_mode == "🧘 MOVILIDAD & RECUPERACIÓN":
 # --- MÓDULO: BIBLIOTECA DE EJERCICIOS ---
 elif system_mode == "📚 BIBLIOTECA DE EJERCICIOS":
     st.markdown("### 📚 Biblioteca de Ejercicios")
-    st.caption("Consulta técnica y grupo muscular de cada ejercicio disponible en la app.")
+    total_ejercicios = sum(len(v) for v in DB_EXERCISES.values())
+    st.caption(f"Consulta técnica y grupo muscular de cada ejercicio disponible en la app · **{total_ejercicios} ejercicios** en {len(DB_EXERCISES)} categorías.")
+
+    if 'favoritos' not in st.session_state:
+        st.session_state['favoritos'] = set()
+
     categorias = list(DB_EXERCISES.keys())
     cat_sel = st.selectbox("Categoría", categorias)
     busqueda = st.text_input("🔍 Buscar ejercicio por nombre")
+    solo_fav = st.checkbox("⭐ Mostrar solo favoritos")
 
     lista = DB_EXERCISES[cat_sel]
     if busqueda:
         lista = [e for e in lista if busqueda.lower() in e.lower()]
+    if solo_fav:
+        lista = [e for e in lista if e in st.session_state['favoritos']]
 
     if not lista:
-        st.info("No se encontraron ejercicios con ese nombre en esta categoría.")
+        st.info("No se encontraron ejercicios con esos filtros.")
     for ej in lista:
         info = DB_EXERCISE_INFO.get(ej, ("Consulta con tu entrenador", "Aún no hay descripción técnica cargada para este ejercicio."))
-        with st.container():
+        col_a, col_b = st.columns([6, 1])
+        with col_a:
             st.markdown(f"**{ej}**")
             st.caption(f"🎯 Grupo: {info[0]}")
             st.caption(f"📝 Técnica: {info[1]}")
-            st.divider()
+        with col_b:
+            es_fav = ej in st.session_state['favoritos']
+            if st.button("⭐" if es_fav else "☆", key=f"fav_{ej}"):
+                if es_fav:
+                    st.session_state['favoritos'].discard(ej)
+                else:
+                    st.session_state['favoritos'].add(ej)
+                st.rerun()
+        st.divider()
 
 # --- MÓDULO: OBJETIVOS & RACHA ---
 elif system_mode == "🎯 OBJETIVOS & RACHA":
@@ -399,16 +490,26 @@ elif system_mode == "🎯 OBJETIVOS & RACHA":
     hoy = datetime.now().date()
     semana = [d for d in fechas if (hoy - d).days < 7]
     c3.metric("✅ Esta semana", f"{len(semana)}/{meta_semanal}")
+    st.progress(min(len(semana) / meta_semanal, 1.0))
+
+    st.divider()
+    st.markdown("### 🎯 Objetivo activo")
+    tipo_obj = st.selectbox("Tipo de objetivo", ["Perder grasa", "Ganar músculo", "Mejorar rendimiento", "Mantenimiento"])
+    fecha_obj = st.date_input("Fecha objetivo")
+    st.caption(f"Objetivo: **{tipo_obj}** para el **{fecha_obj}** — {(fecha_obj - hoy).days if fecha_obj > hoy else 0} días restantes.")
 
     st.divider()
     st.markdown("### ⚖️ Registro corporal")
     with st.form("f_metric", clear_on_submit=True):
-        cm1, cm2, cm3 = st.columns(3)
+        cm1, cm2, cm3, cm4 = st.columns(4)
         peso_m = cm1.number_input("Peso (kg)", 30.0, 250.0, float(st.session_state.user["weight"]))
-        grasa_m = cm2.number_input("% Grasa corporal (opcional)", 0.0, 60.0, 0.0)
-        nota_m = cm3.text_input("Nota", "")
+        grasa_m = cm2.number_input("% Grasa (opcional)", 0.0, 60.0, 0.0)
+        cintura_m = cm3.number_input("Cintura (cm, opcional)", 0.0, 200.0, 0.0)
+        brazo_m = cm4.number_input("Brazo (cm, opcional)", 0.0, 80.0, 0.0)
+        nota_m = st.text_input("Nota", "")
         if st.form_submit_button("GUARDAR MEDICIÓN"):
-            save_metric(USER, peso_m, grasa_m, nota_m)
+            nota_completa = f"{nota_m} | Cintura:{cintura_m}cm Brazo:{brazo_m}cm".strip(" |")
+            save_metric(USER, peso_m, grasa_m, nota_completa)
             st.success("Medición guardada.")
 
     df_metrics = load_metrics(USER)
@@ -416,6 +517,8 @@ elif system_mode == "🎯 OBJETIVOS & RACHA":
         fig_m = px.line(df_metrics, x="fecha", y="peso", markers=True, template="plotly_dark", title="Evolución de peso corporal")
         fig_m.update_traces(line_color="#35d68c")
         st.plotly_chart(fig_m, use_container_width=True)
+        with st.expander("Ver historial completo de mediciones"):
+            st.dataframe(df_metrics, use_container_width=True, hide_index=True)
     else:
         st.info("Registra tu primera medición para ver tu evolución de peso aquí.")
 
@@ -435,6 +538,14 @@ elif system_mode == "🤖 AI ROUTINE COACH":
 
     objetivo = st.selectbox("Objetivo principal", ["Hipertrofia", "Fuerza máxima", "Pérdida de grasa", "Resistencia / Híbrido"])
     nivel = st.select_slider("Nivel", options=["Principiante", "Intermedio", "Avanzado"])
+    dias_disp = st.slider("Días disponibles por semana", 1, 7, 4)
+
+    st.markdown("**Preguntas rápidas** (opcional, ayudan a la IA a afinar la respuesta):")
+    qc1, qc2, qc3 = st.columns(3)
+    lesion = qc1.selectbox("¿Alguna molestia/lesión?", ["Ninguna", "Hombro", "Rodilla", "Espalda baja", "Otra"])
+    equipo = qc2.selectbox("Equipo disponible", ["Gym completo", "Mancuernas/casa", "Solo peso corporal"])
+    tiempo_sesion = qc3.selectbox("Tiempo por sesión", ["30 min", "45 min", "60 min", "90+ min"])
+
     rutina_texto = st.text_area("Describe tu rutina actual (días, ejercicios, series/reps)", height=150)
     foto = st.file_uploader("O sube una foto de tu rutina", type=["png", "jpg", "jpeg"])
 
@@ -458,6 +569,8 @@ elif system_mode == "🤖 AI ROUTINE COACH":
                         })
                     prompt = (
                         f"Soy un atleta de nivel {nivel}, mi objetivo es {objetivo}. "
+                        f"Dispongo de {dias_disp} días por semana, sesiones de {tiempo_sesion}, equipo: {equipo}. "
+                        f"Molestia física a considerar: {lesion}. "
                         f"Esta es mi rutina actual (texto y/o imagen adjunta): {rutina_texto or '(ver imagen)'}. "
                         "Analiza la rutina, señala 2-3 puntos débiles concretos, y propón una versión mejorada "
                         "organizada por día, con series, reps e intensidad sugerida. Sé específico y breve."
@@ -466,7 +579,7 @@ elif system_mode == "🤖 AI ROUTINE COACH":
 
                     response = client.messages.create(
                         model="claude-sonnet-4-6",
-                        max_tokens=1000,
+                        max_tokens=1200,
                         messages=[{"role": "user", "content": content}]
                     )
                     resultado = "".join(block.text for block in response.content if block.type == "text")
@@ -480,6 +593,13 @@ elif system_mode == "🤖 AI ROUTINE COACH":
             save_entry(USER, "IA-Plan", objetivo, 0, nivel, "Plan generado por IA")
             st.success("Plan guardado en tu historial.")
 
+    df_planes = load_entries(USER)
+    df_planes = df_planes[df_planes["tipo"] == "IA-Plan"] if not df_planes.empty else df_planes
+    if not df_planes.empty:
+        with st.expander(f"📁 Historial de planes generados ({len(df_planes)})"):
+            st.dataframe(df_planes[["fecha", "actividad", "meta"]].rename(
+                columns={"actividad": "objetivo", "meta": "nivel"}), use_container_width=True, hide_index=True)
+
 # --- MÓDULO: ANALÍTICA ---
 elif system_mode == "📊 ANALÍTICA GLOBAL":
     df = load_entries(USER)
@@ -487,21 +607,28 @@ elif system_mode == "📊 ANALÍTICA GLOBAL":
         st.markdown("### 📈 Performance Telemetry")
         fig1 = px.line(df.sort_values("id"), x="fecha", y="valor", color="tipo", markers=True,
                         template="plotly_dark", title="Evolución de Carga")
-        fig1.update_traces(line_color='#00ff88')
+        fig1.update_traces(line_color='#35d68c')
         st.plotly_chart(fig1, use_container_width=True)
 
         c_a1, c_a2 = st.columns(2)
         fig2 = px.pie(df, names='tipo', hole=0.6, title="Balance del Atleta",
-                      color_discrete_sequence=['#00ff88', '#00d4ff', '#ff4b4b', '#ffaa00'])
+                      color_discrete_sequence=['#35d68c', '#00d4ff', '#ff4b4b', '#f5a623', '#a86bff'])
         c_a1.plotly_chart(fig2)
 
         fig3 = px.bar(df, x="actividad", y="valor", color="tipo", title="Volumen Acumulado por Ejercicio")
         c_a2.plotly_chart(fig3)
 
         st.divider()
-        st.dataframe(df, use_container_width=True)
+        st.markdown("### 🏆 Récords personales (PR) por ejercicio")
+        prs = df.groupby("actividad")["valor"].max().sort_values(ascending=False).head(10)
+        st.dataframe(prs.reset_index().rename(columns={"actividad": "Ejercicio", "valor": "Mejor marca"}),
+                     use_container_width=True, hide_index=True)
+
+        st.divider()
+        with st.expander("📁 Ver historial completo"):
+            st.dataframe(df, use_container_width=True)
     else:
-        st.info("Todavía no hay datos que graficar. Registra tu primer set en '🏋️ Fuerza & Logística' o tu primera carrera en '🏃 Running Telemetry' — aparecerá aquí al instante.")
+        st.info("Todavía no hay datos que graficar. Registra tu primer set en '🏋️ Entrenamiento de Fuerza' o tu primera carrera en '🏃 Running Telemetry' — aparecerá aquí al instante.")
 
 # --- FOOTER ---
 st.markdown("---")
