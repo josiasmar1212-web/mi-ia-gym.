@@ -1,1368 +1,1109 @@
-
 """
-MorphAI Performance OS — V2.0
-Dashboard fitness con IA, entrenamiento, progresión, readiness, nutrición,
-running, recuperación, analítica, objetivos y exportación.
-
-Ejecutar:
-    pip install -r requirements.txt
+MorphAI Performance OS
+=======================
+App de seguimiento deportivo y coaching con IA (Claude), construida con Streamlit.
+ 
+Ejecutar localmente:
     streamlit run app.py
-
-IA opcional:
-    .streamlit/secrets.toml
-    ANTHROPIC_API_KEY = "sk-ant-..."
+ 
+Configuración de la IA (recomendado para producción):
+    Crea un archivo .streamlit/secrets.toml con:
+        ANTHROPIC_API_KEY = "sk-ant-..."
+    Así ningún usuario final necesita tener ni pegar su propia API key.
+    Si no hay secrets configurados, la app pedirá la key manualmente
+    en la barra lateral (modo desarrollo/demo).
 """
-
+ 
 from __future__ import annotations
-
+ 
 import base64
-import io
-import json
 import sqlite3
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Optional
-
+ 
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
-
+ 
 try:
     import anthropic
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
-
-
+ 
+ 
 # ============================================================
-# CONFIG
+# CONFIGURACIÓN GLOBAL
 # ============================================================
-
-APP_NAME = "MorphAI"
-APP_VERSION = "20.0"
+ 
+APP_NAME = "MorphAI Performance OS"
+APP_VERSION = "19.0"
 DB_PATH = "morphai.db"
-AI_MODEL = "claude-sonnet-4-5-20250929"
-AI_MAX_TOKENS = 2200
-
+AI_MODEL = "claude-sonnet-4-5-20250929"  # revisa docs.claude.com/docs/about-claude/models si cambias de versión
+AI_MAX_TOKENS = 1600
+ 
 MODULES = [
-    "🏠 Dashboard",
-    "🏋️ Entrenamiento",
-    "📈 Progreso",
-    "🧠 Readiness",
-    "🍎 Nutrición",
-    "🏃 Running",
-    "🧘 Recuperación",
-    "🤖 AI Coach",
-    "📚 Ejercicios",
-    "🎯 Objetivos",
-    "📊 Analítica",
-    "⚙️ Datos",
+    "🧠 Neural Readiness & Sueño",
+    "🏋️ Entrenamiento de Fuerza",
+    "🏃 Running Telemetry",
+    "🥊 Combate & Explosividad",
+    "🧘 Movilidad & Recuperación",
+    "🍎 Nutrición & Macros",
+    "🔥 AI Warm-up & Form Coach",
+    "📚 Biblioteca de Ejercicios",
+    "🎯 Objetivos & Racha",
+    "🤖 AI Routine Coach",
+    "📊 Analítica Global",
+    "🛠️ Gestión de Datos & Backup",
 ]
-
-EXERCISES = {
-    "Pecho": [
-        "Press Banca Plano", "Press Banca Inclinado", "Press Mancuernas",
-        "Aperturas Polea", "Fondos en Paralelas", "Press Declinado"
-    ],
-    "Espalda": [
-        "Dominadas", "Remo Pendlay", "Remo con Mancuerna", "Jalón al Pecho",
-        "Peso Muerto Convencional", "Remo en T"
-    ],
-    "Piernas": [
-        "Sentadilla Barra", "Peso Muerto Sumo", "Prensa 45°", "Zancadas Búlgaras",
-        "Curl Femoral", "Extensión Cuádriceps", "Hip Thrust"
-    ],
-    "Hombros": [
-        "Press Militar", "Elevaciones Laterales", "Pájaros Posteriores",
-        "Press Arnold", "Face Pull"
-    ],
-    "Brazos": [
-        "Curl Barra Z", "Curl Martillo", "Press Francés",
-        "Fondos Tríceps", "Curl Predicador"
-    ],
-    "Core": [
-        "Plancha Frontal", "Rueda Abdominal", "Elevación de Piernas",
-        "Russian Twist", "Plancha Lateral"
-    ],
-}
-
-EXERCISE_INFO = {
-    "Press Banca Plano": ("Pecho · tríceps · deltoide anterior",
-                          "Escápulas estables, pies firmes y recorrido controlado."),
-    "Press Banca Inclinado": ("Pecho superior · tríceps",
-                              "Mantén el hombro estable y evita perder tensión."),
-    "Sentadilla Barra": ("Cuádriceps · glúteos · core",
-                         "Rodillas acompañan la dirección de los pies y torso estable."),
-    "Peso Muerto Convencional": ("Cadena posterior",
-                                 "Barra cercana al cuerpo y columna neutra."),
-    "Peso Muerto Sumo": ("Glúteos · aductores · isquios",
-                         "Base amplia y empuje del suelo."),
-    "Dominadas": ("Dorsal · bíceps",
-                  "Inicia con las escápulas y lleva los codos hacia las costillas."),
-    "Remo Pendlay": ("Espalda media · dorsal",
-                     "Torso estable y barra hacia la zona baja del torso."),
-    "Hip Thrust": ("Glúteo mayor",
-                   "Extiende la cadera sin hiperextender la zona lumbar."),
-    "Press Militar": ("Hombro · tríceps · core",
-                      "Glúteos y abdomen activos, evitando compensaciones."),
-    "Elevaciones Laterales": ("Deltoide lateral",
-                              "Movimiento controlado sin convertirlo en un balanceo."),
-}
-
-
-# ============================================================
-# PAGE + CSS
-# ============================================================
-
+ 
 st.set_page_config(
-    page_title=f"{APP_NAME} Performance OS",
+    page_title=f"{APP_NAME} | v{APP_VERSION}",
     page_icon="🧬",
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-def css() -> None:
-    st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
-
-    :root {
-        --bg:#070b09;
-        --panel:#0d1411;
-        --panel2:#111b16;
-        --line:rgba(119,255,185,.13);
-        --green:#45e695;
-        --green2:#9bffc7;
-        --text:#f2f6f4;
-        --muted:#87968e;
-        --orange:#ffb454;
-        --red:#ff6d78;
-        --blue:#65b8ff;
-    }
-
-    .stApp {
-        background:
-          radial-gradient(circle at 85% 0%, rgba(69,230,149,.07), transparent 30%),
-          radial-gradient(circle at 0% 25%, rgba(101,184,255,.035), transparent 25%),
-          var(--bg);
-        color:var(--text);
-        font-family:'DM Sans',sans-serif;
-    }
-
-    h1,h2,h3,h4 { font-family:'Space Grotesk',sans-serif !important; }
-    [data-testid="stSidebar"] {
-        background:linear-gradient(180deg,#09100d,#070b09);
-        border-right:1px solid var(--line);
-    }
-    [data-testid="stSidebar"] * { font-family:'DM Sans',sans-serif; }
-
-    .brand {
-        padding:4px 0 18px;
-        border-bottom:1px solid var(--line);
-        margin-bottom:18px;
-    }
-    .brand-name {
-        color:var(--green);
-        font-family:'Space Grotesk',sans-serif;
-        font-weight:700;
-        font-size:1.65rem;
-        letter-spacing:1.5px;
-    }
-    .brand-sub {
-        color:var(--muted);
-        font-size:.76rem;
-        letter-spacing:1px;
-        text-transform:uppercase;
-    }
-
-    .hero {
-        position:relative;
-        overflow:hidden;
-        border:1px solid var(--line);
-        background:
-          linear-gradient(135deg,rgba(69,230,149,.09),transparent 45%),
-          linear-gradient(160deg,#111a15,#0b110e);
-        border-radius:22px;
-        padding:30px;
-        margin-bottom:22px;
-        box-shadow:0 18px 50px rgba(0,0,0,.22);
-    }
-    .hero:after {
-        content:"";
-        position:absolute;
-        width:230px;height:230px;
-        right:-100px;top:-100px;
-        border-radius:50%;
-        border:1px solid rgba(69,230,149,.18);
-        box-shadow:0 0 0 35px rgba(69,230,149,.025),0 0 0 70px rgba(69,230,149,.015);
-    }
-    .eyebrow {
-        color:var(--green);
-        font-size:.72rem;
-        font-weight:700;
-        letter-spacing:2px;
-        text-transform:uppercase;
-    }
-    .hero-title {
-        font-family:'Space Grotesk',sans-serif;
-        font-size:2.25rem;
-        font-weight:700;
-        margin:5px 0;
-    }
-    .hero-text { color:var(--muted); max-width:720px; }
-    .hero-badge {
-        display:inline-block;
-        margin-top:12px;
-        padding:8px 12px;
-        border:1px solid var(--line);
-        border-radius:999px;
-        color:var(--green2);
-        background:rgba(69,230,149,.06);
-        font-size:.78rem;
-    }
-
-    .card {
-        background:linear-gradient(145deg,#101813,#0c120f);
-        border:1px solid var(--line);
-        border-radius:18px;
-        padding:20px;
-        min-height:112px;
-        box-shadow:0 10px 30px rgba(0,0,0,.15);
-    }
-    .card-label {
-        color:var(--muted);
-        font-size:.73rem;
-        text-transform:uppercase;
-        letter-spacing:1.2px;
-    }
-    .card-value {
-        font-family:'Space Grotesk',sans-serif;
-        font-size:1.85rem;
-        font-weight:700;
-        margin-top:5px;
-    }
-    .card-note { color:var(--muted); font-size:.78rem; margin-top:3px; }
-
-    .section {
-        border:1px solid var(--line);
-        background:rgba(13,20,17,.86);
-        border-radius:18px;
-        padding:22px;
-        margin:10px 0 20px;
-    }
-    .section-title {
-        font-family:'Space Grotesk',sans-serif;
-        font-weight:700;
-        font-size:1.1rem;
-        margin-bottom:2px;
-    }
-    .section-sub { color:var(--muted); font-size:.82rem; margin-bottom:15px; }
-
-    .score {
-        text-align:center;
-        border-radius:18px;
-        padding:24px 12px;
-        border:1px solid var(--line);
-        background:linear-gradient(145deg,rgba(69,230,149,.09),rgba(69,230,149,.025));
-    }
-    .score-number {
-        font-family:'Space Grotesk',sans-serif;
-        font-size:3.8rem;
-        font-weight:700;
-        color:var(--green);
-        line-height:1;
-    }
-    .score-label { color:var(--muted); margin-top:7px; }
-
-    .coach {
-        border-left:3px solid var(--green);
-        border-top:1px solid var(--line);
-        border-right:1px solid var(--line);
-        border-bottom:1px solid var(--line);
-        border-radius:14px;
-        padding:18px;
-        background:rgba(69,230,149,.035);
-        white-space:pre-wrap;
-        line-height:1.55;
-    }
-
-    .pill {
-        display:inline-block;
-        border-radius:999px;
-        padding:5px 9px;
-        font-size:.72rem;
-        border:1px solid var(--line);
-        color:var(--green2);
-        background:rgba(69,230,149,.05);
-        margin-right:5px;
-    }
-
-    .tip {
-        padding:13px 15px;
-        border-radius:12px;
-        background:rgba(101,184,255,.05);
-        border:1px solid rgba(101,184,255,.15);
-        color:#cfe9ff;
-    }
-
-    .stButton > button {
-        border-radius:11px !important;
-        font-weight:700 !important;
-        min-height:42px;
-    }
-    .stProgress > div > div > div > div { background:var(--green); }
-    div[data-testid="stMetric"] {
-        background:rgba(17,27,22,.72);
-        border:1px solid var(--line);
-        border-radius:14px;
-        padding:12px;
-    }
-    .block-container { padding-top:1.5rem; padding-bottom:4rem; }
-    footer { visibility:hidden; }
-    </style>
-    """, unsafe_allow_html=True)
-
-
+ 
+ 
 # ============================================================
-# DATABASE
+# BASE DE DATOS
 # ============================================================
-
+ 
 @st.cache_resource
-def db() -> sqlite3.Connection:
+def get_connection() -> sqlite3.Connection:
+    """Crea (o reutiliza) la conexión a la base de datos SQLite y asegura las tablas."""
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    _create_tables(conn)
+    return conn
+ 
+ 
+def _create_tables(conn: sqlite3.Connection) -> None:
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS entries(
+        CREATE TABLE IF NOT EXISTS entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user TEXT NOT NULL,
-            fecha TEXT NOT NULL,
-            tipo TEXT NOT NULL,
-            actividad TEXT NOT NULL,
-            valor REAL DEFAULT 0,
-            meta TEXT DEFAULT '',
-            extra TEXT DEFAULT ''
+            user TEXT, fecha TEXT, tipo TEXT, actividad TEXT,
+            valor REAL, meta TEXT, extra TEXT
         )
     """)
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS metrics(
+        CREATE TABLE IF NOT EXISTS metrics (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user TEXT NOT NULL,
-            fecha TEXT NOT NULL,
-            peso REAL,
-            grasa REAL,
-            cintura REAL DEFAULT 0,
-            brazo REAL DEFAULT 0,
-            nota TEXT DEFAULT ''
+            user TEXT, fecha TEXT, peso REAL, grasa REAL, nota TEXT
         )
     """)
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS readiness(
+        CREATE TABLE IF NOT EXISTS readiness (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user TEXT NOT NULL,
-            fecha TEXT NOT NULL,
-            sueno REAL,
-            calidad INTEGER,
-            doms INTEGER,
-            estres INTEGER,
-            hrv REAL,
-            score REAL,
-            nota TEXT DEFAULT ''
+            user TEXT, fecha TEXT, sueno_hrs REAL, calidad_sueno INTEGER,
+            doms INTEGER, estres INTEGER, hrv INTEGER, score REAL, nota TEXT
         )
     """)
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS nutrition(
+        CREATE TABLE IF NOT EXISTS nutrition (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user TEXT NOT NULL,
-            fecha TEXT NOT NULL,
-            calorias INTEGER,
-            proteina REAL,
-            carbs REAL,
-            grasa REAL,
-            agua REAL
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS goals(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user TEXT NOT NULL,
-            nombre TEXT NOT NULL,
-            objetivo REAL,
-            actual REAL DEFAULT 0,
-            unidad TEXT DEFAULT '',
-            deadline TEXT DEFAULT ''
+            user TEXT, fecha TEXT, calorias INTEGER, proteina INTEGER,
+            carbs INTEGER, grasa INTEGER, agua_l REAL
         )
     """)
     conn.commit()
-    return conn
-
-
-def q(sql: str, params=()) -> pd.DataFrame:
-    return pd.read_sql_query(sql, db(), params=params)
-
-
-def now_str() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M")
-
-
-def add_entry(user, tipo, actividad, valor=0, meta="", extra=""):
-    db().execute(
-        "INSERT INTO entries(user,fecha,tipo,actividad,valor,meta,extra) VALUES(?,?,?,?,?,?,?)",
-        (user, now_str(), tipo, actividad, valor, meta, extra)
+ 
+ 
+def save_entry(user: str, tipo: str, actividad: str, valor: float, meta: str, extra: str) -> None:
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO entries (user, fecha, tipo, actividad, valor, meta, extra) VALUES (?,?,?,?,?,?,?)",
+        (user, datetime.now().strftime("%Y-%m-%d %H:%M"), tipo, actividad, valor, meta, extra),
     )
-    db().commit()
-
-
-def entries(user):
-    return q("SELECT * FROM entries WHERE user=? ORDER BY id DESC", (user,))
-
-
-def save_metric(user, peso, grasa, cintura, brazo, nota):
-    db().execute(
-        "INSERT INTO metrics(user,fecha,peso,grasa,cintura,brazo,nota) VALUES(?,?,?,?,?,?,?)",
-        (user, now_str(), peso, grasa, cintura, brazo, nota)
+    conn.commit()
+ 
+ 
+def load_entries(user: str) -> pd.DataFrame:
+    conn = get_connection()
+    return pd.read_sql_query("SELECT * FROM entries WHERE user=? ORDER BY id DESC", conn, params=(user,))
+ 
+ 
+def save_metric(user: str, peso: float, grasa: float, nota: str) -> None:
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO metrics (user, fecha, peso, grasa, nota) VALUES (?,?,?,?,?)",
+        (user, datetime.now().strftime("%Y-%m-%d %H:%M"), peso, grasa, nota),
     )
-    db().commit()
-
-
-def metrics(user):
-    return q("SELECT * FROM metrics WHERE user=? ORDER BY id", (user,))
-
-
-def save_readiness(user, sueno, calidad, doms, estres, hrv, score, nota):
-    db().execute(
-        "INSERT INTO readiness(user,fecha,sueno,calidad,doms,estres,hrv,score,nota) VALUES(?,?,?,?,?,?,?,?,?)",
-        (user, now_str(), sueno, calidad, doms, estres, hrv, score, nota)
+    conn.commit()
+ 
+ 
+def load_metrics(user: str) -> pd.DataFrame:
+    conn = get_connection()
+    return pd.read_sql_query("SELECT * FROM metrics WHERE user=? ORDER BY id", conn, params=(user,))
+ 
+ 
+def save_readiness(user: str, sueno: float, calidad: int, doms: int, estres: int,
+                    hrv: int, score: float, nota: str) -> None:
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO readiness (user, fecha, sueno_hrs, calidad_sueno, doms, estres, hrv, score, nota) "
+        "VALUES (?,?,?,?,?,?,?,?,?)",
+        (user, datetime.now().strftime("%Y-%m-%d %H:%M"), sueno, calidad, doms, estres, hrv, score, nota),
     )
-    db().commit()
-
-
-def readiness(user):
-    return q("SELECT * FROM readiness WHERE user=? ORDER BY id DESC", (user,))
-
-
-def save_nutrition(user, cal, prot, carbs, grasa, agua):
-    db().execute(
-        "INSERT INTO nutrition(user,fecha,calorias,proteina,carbs,grasa,agua) VALUES(?,?,?,?,?,?,?)",
-        (user, now_str(), cal, prot, carbs, grasa, agua)
+    conn.commit()
+ 
+ 
+def load_readiness(user: str) -> pd.DataFrame:
+    conn = get_connection()
+    return pd.read_sql_query("SELECT * FROM readiness WHERE user=? ORDER BY id DESC", conn, params=(user,))
+ 
+ 
+def save_nutrition(user: str, cal: int, prot: int, carbs: int, grasa: int, agua: float) -> None:
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO nutrition (user, fecha, calorias, proteina, carbs, grasa, agua_l) VALUES (?,?,?,?,?,?,?)",
+        (user, datetime.now().strftime("%Y-%m-%d %H:%M"), cal, prot, carbs, grasa, agua),
     )
-    db().commit()
-
-
-def nutrition(user):
-    return q("SELECT * FROM nutrition WHERE user=? ORDER BY id DESC", (user,))
-
-
+    conn.commit()
+ 
+ 
+def load_nutrition(user: str) -> pd.DataFrame:
+    conn = get_connection()
+    return pd.read_sql_query("SELECT * FROM nutrition WHERE user=? ORDER BY id DESC", conn, params=(user,))
+ 
+ 
+def delete_record(table: str, record_id: int, user: str) -> None:
+    conn = get_connection()
+    conn.execute(f"DELETE FROM {table} WHERE id=? AND user=?", (record_id, user))
+    conn.commit()
+ 
+ 
 # ============================================================
-# MATH / ANALYTICS
+# DATOS DE EJERCICIOS
 # ============================================================
-
-def e1rm(weight: float, reps: int) -> float:
-    if reps <= 1:
-        return weight
-    if reps >= 37:
-        return weight
-    return weight / (1.0278 - 0.0278 * reps)
-
-
-def pace_text(minutes: float, km: float) -> str:
-    if km <= 0:
-        return "--"
-    pace = minutes / km
-    mins = int(pace)
-    secs = int(round((pace - mins) * 60))
-    if secs == 60:
-        mins += 1
-        secs = 0
-    return f"{mins}:{secs:02d} /km"
-
-
-def readiness_score(sleep, quality, doms, stress, hrv):
-    # Score de disposición basado en los datos introducidos; no diagnostica fatiga.
-    base = min(sleep / 8, 1.15) * 32
-    base += quality * 3.0
-    base += (11 - doms) * 2.3
-    base += (11 - stress) * 1.7
-    if hrv > 0:
-        base = base * .82 + min(hrv / 80 * 18, 18)
-    return round(max(10, min(100, base)), 1)
-
-
-def current_streak(df):
-    if df.empty:
-        return 0
-    days = set(pd.to_datetime(df["fecha"]).dt.date)
-    d = date.today()
-    streak = 0
-    while d in days:
-        streak += 1
-        d -= timedelta(days=1)
-    return streak
-
-
-def weekly_sessions(df):
-    if df.empty:
-        return 0
-    days = set(pd.to_datetime(df["fecha"]).dt.date)
-    return sum((date.today() - d).days < 7 for d in days)
-
-
-def strength_df(df, exercise=None):
-    if df.empty:
-        return df
-    x = df[df["tipo"].str.startswith("Fuerza", na=False)].copy()
-    if exercise:
-        x = x[x["actividad"] == exercise]
-    if x.empty:
-        return x
-    def parse_weight(s):
-        try:
-            return float(str(s).split("kg")[0])
-        except Exception:
-            return 0
-    def parse_reps(s):
-        try:
-            return int(str(s).split("x")[1].split()[0])
-        except Exception:
-            return 0
-    x["peso"] = x["meta"].apply(parse_weight)
-    x["reps"] = x["meta"].apply(parse_reps)
-    x["e1rm"] = x.apply(lambda r: e1rm(r["peso"], int(r["reps"])), axis=1)
-    x["volumen"] = x["peso"] * x["reps"]
-    return x
-
-
+ 
+DB_EXERCISES: dict[str, list[str]] = {
+    "Pecho": ["Press Banca Plano", "Press Banca Inclinado", "Press Mancuernas", "Aperturas Polea",
+              "Fondos en Paralelas", "Press Declinado"],
+    "Espalda": ["Dominadas Pro", "Remo Pendlay", "Remo con Mancuerna", "Jalón al Pecho",
+                "Peso Muerto Convencional", "Remo en T"],
+    "Piernas": ["Sentadilla Barra", "Peso Muerto Sumó", "Prensa 45°", "Zancadas Búlgaras",
+                "Curl Femoral", "Extensión Cuádriceps", "Hip Thrust"],
+    "Hombros": ["Press Militar", "Elevaciones Laterales", "Pájaros Posteriores", "Press Arnold", "Face Pull"],
+    "Brazos": ["Curl Barra Z", "Curl Martillo", "Press Francés", "Fondos Tríceps", "Curl Predicador"],
+    "Core": ["Plancha Frontal", "Rueda Abdominal", "Elevación de Piernas", "Russian Twist", "Plancha Lateral"],
+    "Explosividad": ["Saltos al Cajón", "Landmine Punch", "Medball Slam", "Burpee Pliométrico",
+                      "Snatch con Mancuerna", "Sprints Potencia", "Kettlebell Swing"],
+    "Calistenia": ["Muscle Up", "Pistol Squat", "Handstand Push-up", "Front Lever (progresión)",
+                    "Human Flag (progresión)"],
+    "Running": ["Carrera Continua", "Series VO2 Max", "Fartlek Neural", "Umbral Lactato",
+                "Trote Regenerativo", "Cuestas Cortas"],
+    "Movilidad": ["Movilidad de Cadera", "Movilidad Torácica", "Estiramiento Isquiotibiales",
+                  "Foam Rolling Espalda", "Movilidad de Hombro", "Respiración Diafragmática"],
+}
+ 
+DB_EXERCISE_INFO: dict[str, tuple[str, str]] = {
+    "Sentadilla Barra": ("Cuádriceps, glúteos, core",
+                          "Barra libre en espalda alta, baja controlando la rodilla en línea con el pie."),
+    "Peso Muerto Sumó": ("Glúteos, isquiotibiales, espalda baja",
+                         "Postura ancha, espalda neutra, empuja el piso con los talones."),
+    "Peso Muerto Convencional": ("Cadena posterior completa",
+                                  "Barra pegada a la tibia, cadera arriba antes que el pecho."),
+    "Press Banca Plano": ("Pectoral, tríceps, hombro anterior",
+                           "Escápulas retraídas, barra baja al esternón con control."),
+    "Dominadas Pro": ("Dorsal ancho, bíceps", "Agarre prono, tira con el codo hacia la cadera."),
+    "Press Militar": ("Hombro, tríceps, core", "De pie, evita arquear la espalda baja al empujar."),
+    "Hip Thrust": ("Glúteo mayor", "Espalda apoyada en banco, empuje con talones, aprieta glúteo arriba."),
+    "Muscle Up": ("Dorsal, tríceps, core",
+                  "Transición explosiva de dominada a fondo, requiere buena base de fuerza en ambos."),
+    "Kettlebell Swing": ("Cadena posterior, potencia de cadera", "El impulso viene de la cadera, no de los brazos."),
+    "Plancha Frontal": ("Core, estabilidad lumbar", "Cuerpo en línea recta, glúteos y abdomen activos."),
+    "Movilidad de Cadera": ("Flexores de cadera, rotadores", "Series de 90/90 y círculos controlados, sin rebotes."),
+}
+ 
+ 
 # ============================================================
-# AI
+# ESTILOS (CSS)
 # ============================================================
-
-def secret_key():
+ 
+def apply_custom_css() -> None:
+    st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+ 
+    :root {
+        --bg-0: #0b0f0d; --bg-1: #121714; --panel: #161d19;
+        --line: rgba(150, 255, 200, 0.12);
+        --signal: #35d68c; --signal-soft: rgba(53, 214, 140, 0.12);
+        --amber: #f5a623; --amber-soft: rgba(245, 166, 35, 0.10);
+        --red: #ff4b4b; --red-soft: rgba(255, 75, 75, 0.12);
+        --text-hi: #eef2f0; --text-mid: #9aa8a2; --text-low: #5e6b66;
+    }
+ 
+    .stApp { background: var(--bg-0); color: var(--text-hi); font-family: 'Inter', sans-serif; }
+    h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
+ 
+    .hero-card {
+        background: linear-gradient(160deg, var(--bg-1) 0%, var(--panel) 100%);
+        border: 1px solid var(--line); border-radius: 16px; padding: 28px 32px;
+        margin-bottom: 28px; display: flex; justify-content: space-between;
+        align-items: center; flex-wrap: wrap; gap: 16px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+    .hero-eyebrow { font-family: 'JetBrains Mono', monospace; color: var(--signal); font-size: 0.75rem;
+                    letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+    .hero-title { font-family: 'Space Grotesk', sans-serif; font-size: 1.9rem; font-weight: 700;
+                  color: var(--text-hi); margin: 0; }
+    .hero-sub { color: var(--text-mid); font-size: 0.92rem; margin-top: 4px; }
+    .hero-badge {
+        font-family: 'JetBrains Mono', monospace; background: var(--signal-soft); border: 1px solid var(--line);
+        color: var(--signal); padding: 10px 16px; border-radius: 10px; font-size: 0.8rem;
+        text-align: right; line-height: 1.5;
+    }
+ 
+    .module-container { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+                         padding: 26px; margin-bottom: 22px; }
+ 
+    .timer-display {
+        font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 5.5rem;
+        text-align: center; padding: 40px; border-radius: 18px; border: 2px solid var(--amber);
+        color: var(--amber); background: var(--amber-soft); letter-spacing: 4px;
+    }
+    .work-active { border-color: var(--signal) !important; color: var(--signal) !important;
+                    background: var(--signal-soft) !important; }
+ 
+    .ia-card { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--signal);
+               border-radius: 14px; padding: 26px; white-space: pre-wrap; color: var(--text-hi); line-height: 1.6; }
+    .ia-tag { color: var(--signal); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;
+              letter-spacing: 1.5px; text-transform: uppercase; border-bottom: 1px solid var(--line);
+              margin-bottom: 14px; padding-bottom: 10px; }
+ 
+    .rm-giant { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 3.6rem;
+                color: var(--signal); text-align: center; margin: 0; }
+ 
+    .readiness-box { padding: 20px; border-radius: 12px; text-align: center; font-family: 'JetBrains Mono', monospace;
+                      font-weight: 700; font-size: 2rem; margin-bottom: 15px; }
+    .readiness-high { background: var(--signal-soft); color: var(--signal); border: 1px solid var(--signal); }
+    .readiness-mid { background: var(--amber-soft); color: var(--amber); border: 1px solid var(--amber); }
+    .readiness-low { background: var(--red-soft); color: var(--red); border: 1px solid var(--red); }
+ 
+    section[data-testid="stSidebar"] { background: var(--bg-1); border-right: 1px solid var(--line); }
+ 
+    .stButton>button { border-radius: 10px; font-weight: 600; transition: all 0.15s ease; }
+    .stButton>button:hover { transform: translateY(-1px); }
+    </style>
+    """, unsafe_allow_html=True)
+ 
+ 
+# ============================================================
+# INTEGRACIÓN CON IA (Claude)
+# ============================================================
+ 
+def _get_secret_api_key() -> Optional[str]:
+    """Lee la API key desde .streamlit/secrets.toml si existe. Nunca lanza excepción."""
     try:
         return st.secrets["ANTHROPIC_API_KEY"]
     except Exception:
         return None
-
-
-def ai_client():
+ 
+ 
+def get_ai_client() -> Optional["anthropic.Anthropic"]:
+    """
+    Devuelve un cliente de Anthropic listo para usar, o None si no hay key disponible.
+    Prioridad: secrets.toml (producción) > key manual introducida en la sesión (demo/desarrollo).
+    """
     if not ANTHROPIC_AVAILABLE:
         return None
-    key = secret_key() or st.session_state.get("manual_api_key")
-    return anthropic.Anthropic(api_key=key) if key else None
-
-
-def call_ai(client, prompt, system=None, image_b64=None, media_type="image/jpeg"):
+ 
+    api_key = _get_secret_api_key() or st.session_state.get("manual_api_key")
+    if not api_key:
+        return None
+ 
+    return anthropic.Anthropic(api_key=api_key)
+ 
+ 
+def call_ai(client: "anthropic.Anthropic", prompt: str, *, system: Optional[str] = None,
+            image_b64: Optional[str] = None, media_type: str = "image/jpeg") -> Optional[str]:
+    """Llama al modelo y devuelve el texto de respuesta, o None si hubo un error (ya mostrado con st.error)."""
     content = []
     if image_b64:
-        content.append({
-            "type": "image",
-            "source": {"type": "base64", "media_type": media_type, "data": image_b64}
-        })
+        content.append({"type": "image", "source": {"type": "base64", "media_type": media_type, "data": image_b64}})
     content.append({"type": "text", "text": prompt})
+ 
+    kwargs = dict(model=AI_MODEL, max_tokens=AI_MAX_TOKENS, messages=[{"role": "user", "content": content}])
+    if system:
+        kwargs["system"] = system
+ 
     try:
-        response = client.messages.create(
-            model=AI_MODEL,
-            max_tokens=AI_MAX_TOKENS,
-            system=system or "Eres MorphAI, un coach de fitness prudente, claro y práctico.",
-            messages=[{"role": "user", "content": content}],
-        )
-        return "".join(x.text for x in response.content if x.type == "text")
+        with st.spinner("Consultando a tu entrenador IA..."):
+            response = client.messages.create(**kwargs)
+        return "".join(block.text for block in response.content if block.type == "text")
     except Exception as exc:
-        st.error(f"Error de IA: {exc}")
+        st.error(f"Error al comunicarse con la IA: {exc}")
         return None
-
-
-# ============================================================
-# UI HELPERS
-# ============================================================
-
-def card(label, value, note=""):
-    st.markdown(
-        f'<div class="card"><div class="card-label">{label}</div>'
-        f'<div class="card-value">{value}</div>'
-        f'<div class="card-note">{note}</div></div>',
-        unsafe_allow_html=True
-    )
-
-
-def title(text, sub=""):
-    st.markdown(f'<div class="section-title">{text}</div>', unsafe_allow_html=True)
-    if sub:
-        st.markdown(f'<div class="section-sub">{sub}</div>', unsafe_allow_html=True)
-
-
-def chart_layout(fig):
-    fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=10, r=10, t=45, b=10),
-        font=dict(family="DM Sans"),
-        legend=dict(bgcolor="rgba(0,0,0,0)")
-    )
-    return fig
-
-
+ 
+ 
 # ============================================================
 # SIDEBAR
 # ============================================================
-
-def sidebar():
-    if "profile" not in st.session_state:
-        st.session_state.profile = {
-            "name": "ATLETA", "weight": 80.0, "height": 180,
-            "age": 20, "goal": "Hipertrofia"
-        }
-
+ 
+def render_sidebar() -> tuple[str, str]:
     with st.sidebar:
         st.markdown(
-            '<div class="brand"><div class="brand-name">MORPHAI</div>'
-            '<div class="brand-sub">Performance OS · V20</div></div>',
-            unsafe_allow_html=True
+            f'<h1 style="font-family:Space Grotesk, sans-serif; color:#35d68c; '
+            f'letter-spacing:2px; font-size:1.5rem; margin-bottom:0;">{APP_NAME.split()[0].upper()} OS</h1>',
+            unsafe_allow_html=True,
         )
-
-        name = st.text_input("Atleta", st.session_state.profile["name"])
-        st.session_state.profile["name"] = name.strip().upper() or "ATLETA"
-
-        st.session_state.profile["weight"] = st.number_input(
-            "Peso (kg)", 30.0, 250.0, float(st.session_state.profile["weight"]), 0.5
-        )
-        st.session_state.profile["goal"] = st.selectbox(
-            "Objetivo",
-            ["Hipertrofia", "Fuerza", "Pérdida de grasa", "Rendimiento híbrido"],
-            index=["Hipertrofia", "Fuerza", "Pérdida de grasa", "Rendimiento híbrido"].index(
-                st.session_state.profile["goal"]
-            )
-        )
-
+        st.caption(f"v{APP_VERSION} · Apex Edition")
         st.divider()
-
-        if secret_key():
-            st.success("● IA conectada")
-        else:
-            with st.expander("🔑 Conectar IA"):
-                st.caption("La clave manual permanece en la sesión.")
-                key = st.text_input(
-                    "Anthropic API Key",
-                    type="password",
-                    value=st.session_state.get("manual_api_key", "")
+ 
+        if "user" not in st.session_state:
+            st.session_state["user"] = {"name": "ATLETA", "weight": 80, "height": 180, "age": 28}
+ 
+        nombre = st.text_input("Operador:", st.session_state.user["name"])
+        st.session_state.user["name"] = (nombre.strip().upper() or "ATLETA")
+ 
+        st.divider()
+ 
+        if _get_secret_api_key() is None:
+            with st.expander("🔑 Configurar entrenador IA", expanded=not bool(st.session_state.get("manual_api_key"))):
+                st.caption("Tu key solo vive en esta sesión de navegador, no se guarda en ningún servidor.")
+                key_input = st.text_input(
+                    "Anthropic API Key", type="password",
+                    value=st.session_state.get("manual_api_key", ""),
+                    help="Consíguela en console.anthropic.com",
                 )
-                if key:
-                    st.session_state.manual_api_key = key
-
-        st.divider()
-        module = st.radio("Navegación", MODULES, label_visibility="collapsed")
-
-        st.divider()
-        st.caption("SQLite local · Datos persistentes")
-        return st.session_state.profile["name"], module
-
-
-# ============================================================
-# HERO
-# ============================================================
-
-def hero(user):
-    df = entries(user)
-    rd = readiness(user)
-    score = f"{rd.iloc[0].score:.0f}" if not rd.empty else "--"
-    st.markdown(
-        f'<div class="hero">'
-        f'<div class="eyebrow">MORPHAI · PERFORMANCE OS · V{APP_VERSION}</div>'
-        f'<div class="hero-title">Hola, {user.title()} 👋</div>'
-        f'<div class="hero-text">Tu centro de entrenamiento: rendimiento, recuperación, progreso y coaching con IA en un solo lugar.</div>'
-        f'<span class="hero-badge">READINESS {score}% · {len(df)} REGISTROS</span>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
-
-
-# ============================================================
-# DASHBOARD
-# ============================================================
-
-def dashboard(user):
-    df = entries(user)
-    rd = readiness(user)
-    nut = nutrition(user)
-    met = metrics(user)
-
-    score = float(rd.iloc[0]["score"]) if not rd.empty else 0
-    streak = current_streak(df)
-    sessions = weekly_sessions(df)
-
-    st.markdown("## 🏠 Dashboard")
-    st.caption("Una vista rápida de lo que está pasando con tu entrenamiento.")
-
-    a,b,c,d = st.columns(4)
-    with a: card("Readiness", f"{score:.0f}%" if score else "--", "Último check-in")
-    with b: card("Racha", f"{streak} días", "Días consecutivos con actividad")
-    with c: card("Semana", f"{sessions}", "Días activos · últimos 7 días")
-    with d: card("Peso", f"{met.iloc[-1]['peso']:.1f} kg" if not met.empty else "--", "Última medición")
-
-    st.markdown('<div class="section">', unsafe_allow_html=True)
-    title("⚡ Panel de acción", "Tres cosas que puedes hacer ahora.")
-    p1,p2,p3 = st.columns(3)
-    with p1:
-        st.markdown("**🏋️ Entrenar**")
-        st.caption("Registra sets, RIR, carga y reps para alimentar tu progresión.")
-    with p2:
-        st.markdown("**🧠 Comprobar estado**")
-        st.caption("Registra sueño, estrés, DOMS y HRV si lo tienes.")
-    with p3:
-        st.markdown("**🤖 Consultar IA**")
-        st.caption("Pide una rutina, análisis o recomendación contextual.")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    left,right = st.columns([1,1])
-    with left:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("🧠 Estado actual", "Tu último check-in, sin convertirlo en un diagnóstico.")
-        if rd.empty:
-            st.info("Haz tu primer check-in en Readiness.")
+                if key_input:
+                    st.session_state["manual_api_key"] = key_input
         else:
-            cls = "🟢 Buen estado" if score >= 80 else ("🟡 Intermedio" if score >= 60 else "🔴 Bajo")
-            st.markdown(
-                f'<div class="score"><div class="score-number">{score:.0f}</div>'
-                f'<div class="score-label">READINESS · {cls}</div></div>',
-                unsafe_allow_html=True
-            )
-            st.progress(score / 100)
-            st.caption(f"Sueño: {rd.iloc[0]['sueno']:.1f} h · Calidad: {rd.iloc[0]['calidad']}/10 · "
-                       f"DOMS: {rd.iloc[0]['doms']}/10 · Estrés: {rd.iloc[0]['estres']}/10")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with right:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("📈 Actividad reciente")
-        if df.empty:
-            st.info("Todavía no hay actividad.")
+            st.success("🟢 Entrenador IA activo")
+ 
+        st.divider()
+        modulo = st.radio("Sistema:", MODULES, label_visibility="collapsed")
+        st.divider()
+        st.caption("🔒 Persistencia local SQLite activa.")
+ 
+    return st.session_state.user["name"], modulo
+ 
+ 
+# ============================================================
+# MÓDULO: NEURAL READINESS
+# ============================================================
+ 
+def render_readiness(user: str) -> None:
+    st.markdown("### 🧠 Evaluación Diaria del Sistema Nervioso (Readiness)")
+    st.caption("El sobreentrenamiento destruye el progreso. Mide tu fatiga y HRV antes de cargar la barra.")
+ 
+    c1, c2 = st.columns([1, 1])
+ 
+    with c1:
+        with st.form("f_readiness", clear_on_submit=True):
+            sueno = st.number_input("Horas de sueño anoche", 1.0, 14.0, 7.5, 0.5)
+            calidad = st.slider("Calidad del sueño (1: Pésimo, 10: Óptimo)", 1, 10, 8)
+            doms = st.slider("Dolor muscular / DOMS (1: Ninguno, 10: Dolor extremo)", 1, 10, 3)
+            estres = st.slider("Nivel de estrés general/mental (1: Relajado, 10: Alto estrés)", 1, 10, 4)
+            hrv = st.number_input("HRV matutino (ms, opcional, 0 si no lo mides)", 0, 200, 65)
+            nota_r = st.text_input("Nota del estado matutino", "Buen descanso")
+ 
+            if st.form_submit_button("Calcular y guardar readiness"):
+                score = (sueno / 8.0 * 30) + (calidad * 3) + ((11 - doms) * 2.5) + ((11 - estres) * 1.5)
+                if hrv > 0:
+                    score = (score * 0.8) + min(hrv / 80.0 * 20, 20)
+                score = min(max(score, 10), 100)
+                save_readiness(user, sueno, calidad, doms, estres, hrv, score, nota_r)
+                st.success(f"Readiness registrado: {score:.1f}%")
+                st.rerun()
+ 
+    with c2:
+        df_r = load_readiness(user)
+        if df_r.empty:
+            st.info("Registra tu primer check-in matutino para calibrar tu algoritmo de entrenamiento.")
+            return
+ 
+        last_score = df_r.iloc[0]["score"]
+        if last_score >= 80:
+            box_class, status, advice = ("readiness-high", "🟢 ÓPTIMO PARA ROMPER PRs",
+                "Tu sistema nervioso está fresco. Es el día perfecto para máxima intensidad (RPE 9-10) o cargas pesadas.")
+        elif last_score >= 60:
+            box_class, status, advice = ("readiness-mid", "🟡 ESTADO NEUTRO / NORMAL",
+                "Entrena según lo planificado. Mantén el volumen de trabajo habitual (RPE 7-8). Escucha a tu cuerpo.")
         else:
-            recent = df.head(8)[["fecha","tipo","actividad","valor"]].copy()
-            recent.columns = ["Fecha","Módulo","Actividad","Valor"]
-            st.dataframe(recent, use_container_width=True, hide_index=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    if not df.empty:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("📊 Actividad acumulada", "Carga/volumen registrado por tipo.")
-        tmp = df.copy()
-        tmp["fecha"] = pd.to_datetime(tmp["fecha"])
-        daily = tmp.groupby(tmp["fecha"].dt.date)["valor"].sum().reset_index()
-        daily.columns = ["fecha","valor"]
-        fig = px.area(daily, x="fecha", y="valor")
-        st.plotly_chart(chart_layout(fig), use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
+            box_class, status, advice = ("readiness-low", "🔴 ALERTA: FATIGA CENTRAL",
+                "Altas probabilidades de sobreentrenamiento o lesión. Se recomienda movilidad, cardio suave Z1 o descanso.")
+ 
+        st.markdown(
+            f'<div class="readiness-box {box_class}">READINESS: {last_score:.0f}%'
+            f'<br><span style="font-size:1rem;">{status}</span></div>',
+            unsafe_allow_html=True,
+        )
+        st.info(f"💡 **Recomendación táctica:** {advice}")
+        st.divider()
+ 
+        fig_r = px.line(df_r.head(14).sort_values("id"), x="fecha", y="score", markers=True,
+                         template="plotly_dark", title="Tendencia de Readiness (últimos 14 registros)")
+        fig_r.update_traces(line_color="#35d68c")
+        st.plotly_chart(fig_r, use_container_width=True)
+ 
+ 
 # ============================================================
-# STRENGTH
+# MÓDULO: FUERZA
 # ============================================================
-
-def strength(user):
-    st.markdown("## 🏋️ Entrenamiento")
-    st.caption("Registra cada set. MorphAI transforma tus datos en progresión.")
-
-    df = entries(user)
-    s = strength_df(df)
-    exercises = [e for values in EXERCISES.values() for e in values]
-
-    left,right = st.columns([1.05,.95])
-    with left:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("Registrar set", "Guarda carga, repeticiones y esfuerzo percibido.")
-        group = st.selectbox("Grupo muscular", list(EXERCISES.keys()))
-        exercise = st.selectbox("Ejercicio", EXERCISES[group])
-        c1,c2,c3 = st.columns(3)
-        weight = c1.number_input("Carga (kg)", 0.0, 500.0, 40.0, 0.5)
-        reps = c2.number_input("Reps", 1, 50, 8)
-        rir = c3.number_input("RIR", 0, 5, 2)
-        notes = st.text_input("Nota del set", placeholder="Ej. técnica limpia")
-        if st.button("＋ Guardar set", use_container_width=True, type="primary"):
-            volume = weight * reps
-            est = e1rm(weight, reps)
-            add_entry(
-                user, f"Fuerza-{group}", exercise, volume,
-                f"{weight:g}kg x {reps}", f"RIR {rir} · e1RM {est:.1f} kg · {notes}"
-            )
-            st.success(f"{exercise}: {weight:g} kg × {reps} guardado.")
-            st.rerun()
-
-        info = EXERCISE_INFO.get(exercise)
+ 
+def render_strength(user: str) -> None:
+    grupos_fuerza = ["Pecho", "Espalda", "Piernas", "Hombros", "Brazos", "Core", "Calistenia"]
+    c1, c2 = st.columns([1, 1])
+ 
+    with c1:
+        st.markdown("### 📥 Registro de Set")
+        grupo = st.selectbox("Grupo muscular", grupos_fuerza)
+ 
+        with st.form("f_gym", clear_on_submit=True):
+            ejer = st.selectbox("Ejercicio", DB_EXERCISES[grupo])
+            c_p, c_r, c_rir = st.columns(3)
+            peso = c_p.number_input("Carga (kg)", 0.0, 500.0, 40.0, 2.5)
+            reps = c_r.number_input("Reps", 1, 50, 10)
+            rir = c_rir.number_input("RIR (reserva)", 0, 5, 2,
+                                      help="Repeticiones que sentiste que podías haber hecho antes del fallo.")
+            rpe = 10 - rir
+ 
+            if st.form_submit_button("Registrar set"):
+                tonelaje = peso * reps
+                save_entry(user, f"Fuerza-{grupo}", ejer, tonelaje, f"{peso}kg x {reps} (RIR {rir})", f"RPE {rpe}")
+                st.session_state["ultimo_peso"] = peso
+                st.session_state["ultimas_reps"] = reps
+                st.success(f"Set de {ejer} guardado. Tonelaje: {tonelaje:.0f} kg.")
+ 
+        info = DB_EXERCISE_INFO.get(ejer)
         if info:
-            st.markdown(f'<div class="tip">💡 <b>Enfoque:</b> {info[0]}<br>{info[1]}</div>',
-                        unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with right:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("🧮 Calculadora e1RM", "Estimación Brzycki para cargas de referencia.")
-        p = st.number_input("Peso", 1.0, 500.0, 80.0, 0.5, key="calc_p")
-        r = st.number_input("Repeticiones", 1, 12, 5, key="calc_r")
-        rm = e1rm(p,r)
-        st.markdown(f'<div class="score"><div class="score-number">{rm:.1f}</div>'
-                    f'<div class="score-label">e1RM · KG</div></div>', unsafe_allow_html=True)
-        x1,x2,x3 = st.columns(3)
-        x1.metric("70%", f"{rm*.70:.1f} kg")
-        x2.metric("80%", f"{rm*.80:.1f} kg")
-        x3.metric("90%", f"{rm*.90:.1f} kg")
-        st.markdown("**Calentamiento orientativo**")
-        for pct,reps_w in [(0.40,8),(0.60,5),(0.75,3),(0.85,1)]:
-            st.write(f"• {rm*pct:.1f} kg × {reps_w}")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="section">', unsafe_allow_html=True)
-    title("🏆 Rendimiento por ejercicio")
-    if s.empty:
-        st.info("Registra un set para empezar a construir tu historial.")
-    else:
-        selected = st.selectbox("Ejercicio a analizar", sorted(s["actividad"].unique()))
-        ex = s[s["actividad"] == selected].sort_values("fecha")
-        best = ex["e1rm"].max()
-        max_weight = ex["peso"].max()
-        total_vol = ex["volumen"].sum()
-        c1,c2,c3 = st.columns(3)
-        c1.metric("Mejor e1RM", f"{best:.1f} kg")
-        c2.metric("Mayor carga", f"{max_weight:.1f} kg")
-        c3.metric("Volumen", f"{total_vol:,.0f} kg")
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=ex["fecha"], y=ex["e1rm"], mode="lines+markers", name="e1RM"))
-        fig = chart_layout(fig)
-        fig.update_layout(title="Evolución estimada de fuerza", yaxis_title="e1RM (kg)")
-        st.plotly_chart(fig, use_container_width=True)
-        st.dataframe(
-            ex[["fecha","peso","reps","e1rm","volumen","extra"]].tail(12),
-            use_container_width=True, hide_index=True
-        )
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ============================================================
-# PROGRESS
-# ============================================================
-
-def progress(user):
-    st.markdown("## 📈 Progreso")
-    st.caption("No mires solamente el peso: mira fuerza, volumen y tendencia.")
-
-    df = entries(user)
-    met = metrics(user)
-    s = strength_df(df)
-
-    if s.empty and met.empty:
-        st.info("Todavía no hay suficientes datos. Registra entrenamientos o mediciones.")
-        return
-
-    if not s.empty:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("Fuerza estimada")
-        exercises = sorted(s["actividad"].unique())
-        selected = st.multiselect("Ejercicios", exercises, default=exercises[:3])
-        if selected:
-            fig = go.Figure()
-            for ex in selected:
-                x = s[s["actividad"] == ex].sort_values("fecha")
-                fig.add_trace(go.Scatter(x=x["fecha"], y=x["e1rm"], mode="lines+markers", name=ex))
-            fig = chart_layout(fig)
-            fig.update_layout(yaxis_title="e1RM (kg)", title="Tendencia de fuerza")
-            st.plotly_chart(fig, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    if not met.empty:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("Peso y composición")
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=met["fecha"], y=met["peso"], mode="lines+markers", name="Peso"))
-        if met["grasa"].fillna(0).max() > 0:
-            fig.add_trace(go.Scatter(x=met["fecha"], y=met["grasa"], mode="lines+markers", name="% grasa",
-                                     yaxis="y2"))
-        fig.update_layout(
-            title="Evolución corporal",
-            yaxis_title="Peso (kg)",
-            yaxis2=dict(title="% grasa", overlaying="y", side="right")
-        )
-        st.plotly_chart(chart_layout(fig), use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ============================================================
-# READINESS
-# ============================================================
-
-def readiness_page(user):
-    st.markdown("## 🧠 Readiness")
-    st.caption("Un check-in diario para contextualizar tu entrenamiento. No es una herramienta médica.")
-
-    left,right = st.columns([1,1])
-    with left:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("Check-in de hoy")
-        sleep = st.number_input("Horas de sueño", 1.0, 14.0, 7.5, .5)
-        quality = st.slider("Calidad del sueño", 1, 10, 8)
-        doms = st.slider("DOMS / agujetas", 1, 10, 3)
-        stress = st.slider("Estrés", 1, 10, 4)
-        hrv = st.number_input("HRV (opcional)", 0.0, 250.0, 0.0, 1.0)
-        note = st.text_input("Cómo te sientes hoy", "Normal")
-        score = readiness_score(sleep,quality,doms,stress,hrv)
-        st.metric("Readiness estimado", f"{score:.0f}/100")
-        if st.button("Guardar check-in", use_container_width=True, type="primary"):
-            save_readiness(user,sleep,quality,doms,stress,hrv,score,note)
-            st.success("Check-in guardado.")
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with right:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("Interpretación")
-        if score >= 80:
-            msg = "🟢 Datos compatibles con una buena disposición para la sesión."
-        elif score >= 60:
-            msg = "🟡 Datos intermedios. Mantén flexibilidad y controla el esfuerzo."
+            st.caption(f"💡 **Trabaja:** {info[0]} — {info[1]}")
+ 
+        st.divider()
+        st.markdown(f"#### 📜 Historial — {ejer}")
+        df_ejer = load_entries(user)
+        df_ejer = df_ejer[df_ejer["actividad"] == ejer] if not df_ejer.empty else df_ejer
+ 
+        if not df_ejer.empty:
+            pr = df_ejer["valor"].max()
+            pr_row = df_ejer[df_ejer["valor"] == pr].iloc[0]
+            st.metric("🏆 Récord de tonelaje (carga × reps)", f"{pr:.0f} kg", help=f"Logrado el {pr_row['fecha']}")
+            st.dataframe(df_ejer[["fecha", "meta", "extra"]].head(5), use_container_width=True, hide_index=True)
         else:
-            msg = "🔴 Datos bajos. Considera reducir carga/volumen si también te sientes fatigado."
-        st.markdown(f'<div class="score"><div class="score-number">{score:.0f}</div>'
-                    f'<div class="score-label">{msg}</div></div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    hist = readiness(user)
-    if not hist.empty:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("Tendencia de readiness")
-        x = hist.head(30).sort_values("fecha")
-        fig = px.line(x, x="fecha", y="score", markers=True)
-        st.plotly_chart(chart_layout(fig), use_container_width=True)
-        st.dataframe(hist.head(14), use_container_width=True, hide_index=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ============================================================
-# NUTRITION
-# ============================================================
-
-def nutrition_page(user):
-    st.markdown("## 🍎 Nutrición")
-    st.caption("Estimaciones orientativas para organizar calorías, macros e hidratación.")
-
-    p = st.session_state.profile
-    c1,c2 = st.columns(2)
-
-    with c1:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("TDEE y macros")
-        weight = st.number_input("Peso", 30.0, 250.0, float(p["weight"]), .5)
-        height = st.number_input("Altura", 120, 230, int(p["height"]), 1)
-        age = st.number_input("Edad", 15, 90, int(p["age"]), 1)
-        sex = st.selectbox("Fórmula Mifflin", ["Hombre","Mujer"])
-        activity = st.selectbox("Actividad", [
-            "Sedentario","Ligero","Moderado","Alto","Muy alto"
-        ])
-        mult = {"Sedentario":1.2,"Ligero":1.375,"Moderado":1.55,"Alto":1.725,"Muy alto":1.9}[activity]
-        sgn = 5 if sex == "Hombre" else -161
-        bmr = 10*weight + 6.25*height - 5*age + sgn
-        tdee = bmr * mult
-        goal = st.selectbox("Objetivo calórico", ["Mantenimiento","Déficit moderado","Superávit moderado"])
-        target = tdee + {"Mantenimiento":0,"Déficit moderado":-350,"Superávit moderado":250}[goal]
-        protein = weight * 1.8
-        fat = weight * .8
-        carbs = max(0,(target - protein*4 - fat*9)/4)
-        x1,x2 = st.columns(2)
-        x1.metric("TDEE", f"{tdee:.0f} kcal")
-        x2.metric("Objetivo", f"{target:.0f} kcal")
-        st.write(f"**Proteína:** {protein:.0f} g · **Grasa:** {fat:.0f} g · **Carbohidratos:** {carbs:.0f} g")
-        st.caption("Las necesidades reales varían. Usa el cambio de peso y rendimiento para ajustar.")
-        st.markdown('</div>', unsafe_allow_html=True)
-
+            st.caption("Aún no tienes sets registrados de este ejercicio. Este será tu primer PR.")
+ 
     with c2:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("Registrar día")
-        with st.form("nutrition_form"):
-            cal = st.number_input("Calorías", 0, 10000, int(target//50*50), 50)
-            prot = st.number_input("Proteína (g)", 0.0, 500.0, float(protein), 5.0)
-            carbs_in = st.number_input("Carbohidratos (g)", 0.0, 1000.0, float(carbs), 5.0)
-            fat_in = st.number_input("Grasa (g)", 0.0, 400.0, float(fat), 5.0)
-            water = st.number_input("Agua (L)", 0.0, 12.0, 2.5, .25)
-            if st.form_submit_button("Guardar nutrición", use_container_width=True):
-                save_nutrition(user,cal,prot,carbs_in,fat_in,water)
-                st.success("Registro guardado.")
-                st.rerun()
-        n = nutrition(user)
-        if not n.empty:
-            st.dataframe(n.head(7), use_container_width=True, hide_index=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
+        st.markdown("### 🧮 Estimación 1RM (Algoritmo Brzycki)")
+        p_rm = st.number_input("Peso para cálculo", 1.0, 500.0,
+                                float(st.session_state.get("ultimo_peso", 100.0)))
+        r_rm = st.number_input("Reps para cálculo", 1, 12,
+                                int(st.session_state.get("ultimas_reps", 5)))
+        res_rm = p_rm / (1.0278 - (0.0278 * r_rm)) if r_rm < 37 else p_rm
+ 
+        st.markdown(f'<p class="rm-giant">{round(res_rm, 1)} KG</p>', unsafe_allow_html=True)
+        st.divider()
+        st.write("**Zonas de intensidad sugeridas:**")
+        st.write(f"🔴 **95% (Máxima fuerza):** {round(res_rm*0.95, 1)} kg · "
+                  f"🟠 **85% (Fuerza):** {round(res_rm*0.85, 1)} kg · "
+                  f"🟢 **70% (Hipertrofia):** {round(res_rm*0.7, 1)} kg")
+        st.divider()
+        st.markdown("#### 🔥 Series de calentamiento sugeridas")
+        st.write("1. Barra vacía / ligero × 12 reps (movilidad y activación)")
+        st.write(f"2. {round(res_rm*0.4, 1)} kg × 8 reps (aproximación)")
+        st.write(f"3. {round(res_rm*0.6, 1)} kg × 4 reps (preparación del SNC)")
+        st.write(f"4. {round(res_rm*0.8, 1)} kg × 1 rep (potenciación post-tetánica)")
+        st.caption("¿Quieres un calentamiento más completo y personalizado? Ve al módulo 🔥 AI Warm-up & Form Coach.")
+ 
+ 
 # ============================================================
-# RUNNING
+# MÓDULO: RUNNING
 # ============================================================
-
-def running(user):
-    st.markdown("## 🏃 Running")
-    st.caption("Registra distancia, tiempo y frecuencia cardiaca para construir tu tendencia.")
-
-    df = entries(user)
-    left,right = st.columns(2)
-    with left:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("Nueva carrera")
-        kind = st.selectbox("Sesión", ["Carrera fácil","Tempo","Series","Fartlek","Umbral","Recuperación"])
-        km = st.number_input("Distancia (km)", .1, 100., 5., .1)
-        mins = st.number_input("Tiempo (min)", 1., 600., 30., .5)
-        hr = st.number_input("FC media", 40, 230, 145)
-        if st.button("Guardar carrera", use_container_width=True, type="primary"):
-            add_entry(user,"Running",kind,km,pace_text(mins,km),f"{hr} BPM · {mins:.1f} min")
-            st.success(f"Guardado · {pace_text(mins,km)}")
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with right:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("Referencia 5K")
-        pb = st.number_input("Mejor 5K (min)", 10., 90., 25., .5)
-        pace = pb/5
-        st.metric("Ritmo 5K", pace_text(pb,5))
-        st.write(f"Rodaje fácil orientativo: {pace*1.25:.2f} min/km")
-        st.write(f"Tempo orientativo: {pace*1.10:.2f} min/km")
-        st.write(f"Intervalos rápidos: {pace*.95:.2f} min/km")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    runs = df[df["tipo"]=="Running"] if not df.empty else df
-    if not runs.empty:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("Historial")
-        runs = runs.copy()
-        runs["fecha"] = pd.to_datetime(runs["fecha"])
-        fig = px.line(runs.sort_values("fecha"),x="fecha",y="valor",markers=True)
-        fig.update_layout(yaxis_title="Distancia (km)")
-        st.plotly_chart(chart_layout(fig), use_container_width=True)
-        st.dataframe(runs.head(15), use_container_width=True, hide_index=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ============================================================
-# RECOVERY
-# ============================================================
-
-def recovery(user):
-    st.markdown("## 🧘 Recuperación")
-    st.caption("Movilidad, respiración y recuperación activa.")
-
-    routines = {
-        "Cadera": ["90/90 · 45s/lado","Estocada con extensión · 45s/lado","Respiración · 60s"],
-        "Hombros": ["Rotación externa suave · 60s","Wall slides · 10 reps","Respiración · 60s"],
-        "Espalda": ["Cat-cow · 10 reps","Rotación torácica · 45s/lado","Respiración · 90s"],
-        "General": ["Cadera · 60s","Torácica · 60s","Hombros · 60s","Respiración · 120s"],
-    }
-
-    focus = st.selectbox("Zona", list(routines.keys()))
-    st.markdown('<div class="section">', unsafe_allow_html=True)
-    title("Rutina rápida · 5 minutos")
-    for i,item in enumerate(routines[focus],1):
-        st.write(f"**{i}.** {item}")
-    if st.button("Registrar recuperación", type="primary"):
-        add_entry(user,"Recuperación",focus,5,"5 min","Rutina guiada")
-        st.success("Sesión registrada.")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    df = entries(user)
-    rec = df[df["tipo"]=="Recuperación"] if not df.empty else df
-    if not rec.empty:
-        st.metric("Sesiones de recuperación", len(rec))
-        st.dataframe(rec.head(10),use_container_width=True,hide_index=True)
-
-
-# ============================================================
-# AI COACH
-# ============================================================
-
-def ai_coach(user):
-    st.markdown("## 🤖 AI Coach")
-    st.caption("Coach contextual para entrenamiento, progresión, nutrición y planificación.")
-
-    client = ai_client()
-    if client is None:
-        st.warning("Conecta una API key de Anthropic en la barra lateral para activar el coach.")
-
-    df = entries(user)
-    rd = readiness(user)
-    profile = st.session_state.profile
-    context = {
-        "objetivo": profile["goal"],
-        "peso": profile["weight"],
-        "registros": len(df),
-        "readiness": float(rd.iloc[0]["score"]) if not rd.empty else None,
-        "actividad_reciente": df.head(8)[["tipo","actividad","valor","meta","extra"]].to_dict("records")
-            if not df.empty else []
-    }
-
-    left,right = st.columns([1,1])
-    with left:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("⚡ Acciones rápidas")
-        action = st.selectbox("Qué quieres que haga", [
-            "Crear entrenamiento para hoy",
-            "Analizar mi progresión",
-            "Optimizar mi rutina semanal",
-            "Analizar recuperación",
-            "Ayudarme con nutrición",
-        ])
-        extra = st.text_area("Contexto adicional", placeholder="Ej. hoy quiero entrenar pecho y espalda...")
-        if st.button("Generar con IA", disabled=client is None, use_container_width=True, type="primary"):
-            prompt = f"""
-Usuario: {user}
-Contexto real disponible:
-{json.dumps(context, ensure_ascii=False, default=str, indent=2)}
-
-Petición: {action}
-Información adicional: {extra}
-
-Responde en español. Sé práctico. Si propones entrenamiento, incluye ejercicios,
-series, repeticiones, RIR y descansos. No diagnostiques lesiones ni prometas resultados.
-Distingue entre datos registrados y recomendaciones.
-"""
-            result = call_ai(client,prompt)
-            if result:
-                st.session_state["ai_result"] = result
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with right:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        title("🧬 Resultado")
-        if st.session_state.get("ai_result"):
-            st.markdown(f'<div class="coach">{st.session_state["ai_result"]}</div>',
-                        unsafe_allow_html=True)
-        else:
-            st.info("Tu próxima recomendación aparecerá aquí.")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="section">', unsafe_allow_html=True)
-    title("💬 Pregunta libre")
-    if "chat" not in st.session_state:
-        st.session_state.chat = []
-    for role,msg in st.session_state.chat[-8:]:
-        with st.chat_message(role):
-            st.write(msg)
-    question = st.chat_input("Ej. ¿Cómo progresaría en press banca?")
-    if question:
-        st.session_state.chat.append(("user",question))
-        if client:
-            prompt = f"Perfil: {json.dumps(context,ensure_ascii=False,default=str)}\nPregunta: {question}"
-            answer = call_ai(client,prompt) or "No pude responder ahora."
-        else:
-            answer = "Conecta la IA para utilizar el chat."
-        st.session_state.chat.append(("assistant",answer))
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ============================================================
-# EXERCISE LIBRARY
-# ============================================================
-
-def library():
-    st.markdown("## 📚 Biblioteca")
-    st.caption("Ejercicios disponibles y guía técnica básica.")
-
-    all_rows = []
-    for group, items in EXERCISES.items():
-        for ex in items:
-            info = EXERCISE_INFO.get(ex,("—","Descripción pendiente."))
-            all_rows.append({"Grupo":group,"Ejercicio":ex,"Músculos":info[0],"Técnica":info[1]})
-    lib = pd.DataFrame(all_rows)
-    c1,c2 = st.columns([1,2])
-    group = c1.selectbox("Grupo",["Todos"]+list(EXERCISES.keys()))
-    search = c2.text_input("🔎 Buscar")
-    if group != "Todos":
-        lib = lib[lib["Grupo"]==group]
-    if search:
-        lib = lib[lib["Ejercicio"].str.contains(search,case=False,na=False)]
-    st.dataframe(lib,use_container_width=True,hide_index=True)
-
-
-# ============================================================
-# GOALS
-# ============================================================
-
-def goals(user):
-    st.markdown("## 🎯 Objetivos")
-    df = entries(user)
-    streak = current_streak(df)
-    week = weekly_sessions(df)
-
-    a,b,c = st.columns(3)
-    a.metric("Racha",f"{streak} días")
-    b.metric("Días activos",f"{week}/7")
-    c.metric("Registros",len(df))
-
-    st.markdown('<div class="section">',unsafe_allow_html=True)
-    title("🏅 Hitos")
-    milestones = [
-        ("Primer registro",1,len(df)),
-        ("Constancia",7,week),
-        ("25 registros",25,len(df)),
-        ("100 registros",100,len(df)),
-    ]
-    for name,target,current in milestones:
-        pct=min(current/target,1)
-        st.write(f"**{name}** · {current}/{target}")
-        st.progress(pct)
-    st.markdown('</div>',unsafe_allow_html=True)
-
-    st.markdown('<div class="section">',unsafe_allow_html=True)
-    title("⚖️ Medición corporal")
-    with st.form("body_form"):
-        c1,c2,c3,c4 = st.columns(4)
-        weight = c1.number_input("Peso",30.,250.,float(st.session_state.profile["weight"]),.1)
-        fat = c2.number_input("% grasa",0.,60.,15.,.5)
-        waist = c3.number_input("Cintura",0.,200.,80.,.5)
-        arm = c4.number_input("Brazo",0.,80.,35.,.5)
-        note = st.text_input("Nota")
-        if st.form_submit_button("Guardar medición",use_container_width=True):
-            save_metric(user,weight,fat,waist,arm,note)
-            st.session_state.profile["weight"]=weight
-            st.success("Medición guardada.")
-            st.rerun()
-    m = metrics(user)
-    if not m.empty:
-        st.dataframe(m.tail(12),use_container_width=True,hide_index=True)
-    st.markdown('</div>',unsafe_allow_html=True)
-
-
-# ============================================================
-# ANALYTICS
-# ============================================================
-
-def analytics(user):
-    st.markdown("## 📊 Analítica")
-    st.caption("Datos sin adornos: volumen, frecuencia y distribución.")
-
-    df = entries(user)
-    if df.empty:
-        st.info("Necesitas registrar actividad.")
-        return
-
-    df["fecha_dt"] = pd.to_datetime(df["fecha"])
-    total = df["valor"].sum()
-    days = df["fecha_dt"].dt.date.nunique()
-    avg = total/days if days else 0
-
-    a,b,c,d = st.columns(4)
-    a.metric("Valor acumulado",f"{total:,.0f}")
-    b.metric("Días activos",days)
-    c.metric("Promedio/día",f"{avg:,.0f}")
-    d.metric("Módulos",df["tipo"].nunique())
-
-    st.markdown('<div class="section">',unsafe_allow_html=True)
-    title("Actividad por día")
-    daily = df.groupby(df["fecha_dt"].dt.date)["valor"].sum().reset_index()
-    fig = px.bar(daily,x="fecha_dt",y="valor")
-    st.plotly_chart(chart_layout(fig),use_container_width=True)
-    st.markdown('</div>',unsafe_allow_html=True)
-
-    c1,c2 = st.columns(2)
-    with c1:
-        fig = px.pie(df,names="tipo",values="valor",hole=.62)
-        st.plotly_chart(chart_layout(fig),use_container_width=True)
-    with c2:
-        top = df.groupby("actividad")["valor"].sum().nlargest(10).reset_index()
-        fig = px.bar(top,x="valor",y="actividad",orientation="h")
-        st.plotly_chart(chart_layout(fig),use_container_width=True)
-
-    s = strength_df(df)
-    if not s.empty:
-        st.markdown('<div class="section">',unsafe_allow_html=True)
-        title("🏆 Mejores e1RM")
-        prs = s.groupby("actividad")["e1rm"].max().sort_values(ascending=False).head(12).reset_index()
-        prs.columns=["Ejercicio","e1RM"]
-        st.dataframe(prs,use_container_width=True,hide_index=True)
-        st.markdown('</div>',unsafe_allow_html=True)
-
-
-# ============================================================
-# DATA
-# ============================================================
-
-def data_page(user):
-    st.markdown("## ⚙️ Datos")
-    st.caption("Exporta tu historial y elimina registros concretos.")
-
-    df = entries(user)
-    m = metrics(user)
-    r = readiness(user)
-    n = nutrition(user)
-
-    tabs = st.tabs(["📥 Exportar","🗑️ Registros","🧾 Resumen"])
-
-    with tabs[0]:
-        if df.empty:
-            st.info("No hay entrenamientos para exportar.")
-        else:
-            csv = df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "Descargar entrenamientos CSV",csv,
-                file_name=f"morphai_{user.lower()}_{date.today()}.csv",
-                mime="text/csv",use_container_width=True
+ 
+def render_running(user: str) -> None:
+    c_run1, c_run2 = st.columns(2)
+ 
+    with c_run1:
+        st.markdown("### 🏃 Registro de Resistencia")
+        with st.form("f_run", clear_on_submit=True):
+            tipo_r = st.selectbox("Tipo de estímulo", DB_EXERCISES["Running"])
+            dist = st.number_input("Distancia (km)", 0.1, 100.0, 5.0, 0.5)
+            m_r = st.number_input("Minutos", 1, 500, 25)
+            hr = st.slider("BPM medio", 60, 220, 145)
+ 
+            if st.form_submit_button("Guardar run"):
+                pace = m_r / dist
+                pace_str = f"{int(pace)}:{int((pace % 1) * 60):02d} min/km"
+                save_entry(user, "Running", tipo_r, dist, pace_str, f"{hr} BPM")
+                st.session_state["ultima_dist"] = dist
+                st.success("Carrera guardada permanentemente.")
+ 
+        st.divider()
+        st.markdown("#### 📜 Últimas carreras")
+        df_run = load_entries(user)
+        df_run = df_run[df_run["tipo"] == "Running"] if not df_run.empty else df_run
+        if not df_run.empty:
+            st.dataframe(
+                df_run[["fecha", "actividad", "valor", "meta", "extra"]].head(5)
+                    .rename(columns={"valor": "km", "meta": "pace", "extra": "BPM"}),
+                use_container_width=True, hide_index=True,
             )
-        bundle = {
-            "entries": df.to_dict("records"),
-            "metrics": m.to_dict("records"),
-            "readiness": r.to_dict("records"),
-            "nutrition": n.to_dict("records"),
-            "exported_at": now_str()
-        }
-        st.download_button(
-            "Descargar backup JSON completo",
-            json.dumps(bundle,ensure_ascii=False,default=str,indent=2).encode("utf-8"),
-            file_name=f"morphai_backup_{date.today()}.json",
-            mime="application/json",use_container_width=True
-        )
-
-    with tabs[1]:
-        if df.empty:
-            st.info("No hay registros.")
         else:
-            st.dataframe(df.head(50),use_container_width=True,hide_index=True)
-            record_id = st.number_input("ID",1,int(df["id"].max()),1)
-            if st.button("Eliminar registro",type="primary"):
-                db().execute("DELETE FROM entries WHERE id=? AND user=?",(int(record_id),user))
-                db().commit()
-                st.success("Registro eliminado.")
-                st.rerun()
-
-    with tabs[2]:
-        a,b,c,d = st.columns(4)
-        a.metric("Entrenamientos",len(df))
-        b.metric("Readiness",len(r))
-        c.metric("Nutrición",len(n))
-        d.metric("Mediciones",len(m))
-        st.json({"usuario":user,"version":APP_VERSION,"base_de_datos":DB_PATH})
-
-
+            st.caption("Aún no registras carreras. La primera aparecerá aquí.")
+ 
+    with c_run2:
+        st.markdown("### 📐 Zonas de ritmo (Karvonen simplificado)")
+        pb_min = st.number_input("Tu mejor tiempo en 5K (minutos)", 10.0, 60.0, 25.0, 0.5)
+        pb_pace = pb_min / 5.0
+        st.write(f"**Pace de referencia (5K):** {int(pb_pace)}:{int((pb_pace % 1) * 60):02d} min/km")
+        st.divider()
+ 
+        zonas = {
+            "🟢 Z1 Recuperación": pb_pace * 1.4,
+            "🔵 Z2 Base aeróbica": pb_pace * 1.25,
+            "🟡 Z3 Tempo": pb_pace * 1.1,
+            "🟠 Z4 Umbral": pb_pace * 1.03,
+            "🔴 Z5 VO2 Max": pb_pace * 0.95,
+        }
+        for zona, p in zonas.items():
+            st.write(f"**{zona}:** {int(p)}:{int((p % 1) * 60):02d} min/km")
+ 
+        st.divider()
+        peso_run = st.session_state.user.get("weight", 75)
+        dist_ref = st.session_state.get("ultima_dist", 0)
+        cal = round(dist_ref * peso_run * 1.036)
+        st.metric("🔥 Calorías estimadas (última carrera)", f"{cal} kcal")
+        st.caption("Estimación metabólica aproximada (MET running ≈ 1.036 kcal/kg/km).")
+ 
+ 
 # ============================================================
-# ROUTER
+# MÓDULO: COMBATE Y EXPLOSIVIDAD
 # ============================================================
-
-def main():
-    css()
-    user,module = sidebar()
-    hero(user)
-
-    handlers = {
-        "🏠 Dashboard": dashboard,
-        "🏋️ Entrenamiento": strength,
-        "📈 Progreso": progress,
-        "🧠 Readiness": readiness_page,
-        "🍎 Nutrición": nutrition_page,
-        "🏃 Running": running,
-        "🧘 Recuperación": recovery,
-        "🤖 AI Coach": ai_coach,
-        "📚 Ejercicios": lambda _: library(),
-        "🎯 Objetivos": goals,
-        "📊 Analítica": analytics,
-        "⚙️ Datos": data_page,
+ 
+def render_combat(user: str) -> None:
+    st.subheader("⏱️ Temporizador Táctico de Combate")
+    preset = st.radio(
+        "Preset rápido",
+        ["Personalizado", "Tabata Clásico (8x20/10)", "Boxeo Amateur (3x180/60)", "HIIT Largo (5x240/60)"],
+        horizontal=True,
+    )
+    presets_map = {
+        "Tabata Clásico (8x20/10)": (8, 20 / 60, 10),
+        "Boxeo Amateur (3x180/60)": (3, 3, 60),
+        "HIIT Largo (5x240/60)": (5, 4, 60),
     }
-    handlers[module](user)
-
+ 
+    t_c1, t_c2, t_c3 = st.columns(3)
+    if preset in presets_map:
+        d_rds, d_wt, d_rt = presets_map[preset]
+        rds = t_c1.number_input("Rounds", 1, 15, d_rds)
+        w_t = t_c2.number_input("Trabajo (min)", 0.1, 5.0, float(d_wt))
+        r_t = t_c3.number_input("Descanso (seg)", 5, 90, d_rt)
+    else:
+        rds = t_c1.number_input("Rounds", 1, 15, 3)
+        w_t = t_c2.number_input("Trabajo (min)", 0.1, 5.0, 3.0)
+        r_t = t_c3.number_input("Descanso (seg)", 5, 90, 30)
+ 
+    if st.button("🔔 Iniciar rounds"):
+        ph = st.empty()
+        for r in range(1, rds + 1):
+            for t in range(int(w_t * 60), 0, -1):
+                ph.markdown(f'<div class="timer-display work-active">ROUND {r}<br>{t//60:02d}:{t%60:02d}</div>',
+                            unsafe_allow_html=True)
+                time.sleep(1)
+            if r < rds:
+                for t in range(r_t, 0, -1):
+                    ph.markdown(f'<div class="timer-display">REST<br>00:{t:02d}</div>', unsafe_allow_html=True)
+                    time.sleep(1)
+        ph.success("🔥 Combate finalizado con éxito")
+        save_entry(user, "Combate-Rounds", preset, rds, f"{rds} rounds", f"{w_t}min trabajo / {r_t}s desc.")
+ 
+    st.divider()
+    st.subheader("⚡ Biblioteca de Explosividad y Potencia")
+    with st.form("f_ex", clear_on_submit=True):
+        ej_ex = st.selectbox("Ejercicio de potencia", DB_EXERCISES["Explosividad"])
+        reps_ex = st.slider("Reps explosivas", 1, 30, 6)
+        lastre = st.number_input("Lastre extra (kg)", 0, 100, 0)
+        if st.form_submit_button("Registrar potencia"):
+            save_entry(user, "Combate", ej_ex, reps_ex, f"{reps_ex} reps", f"{lastre}kg lastre")
+            st.success("Registro guardado permanentemente.")
+ 
+    df_comb = load_entries(user)
+    df_comb = df_comb[df_comb["tipo"].str.startswith("Combate")] if not df_comb.empty else df_comb
+    if not df_comb.empty:
+        st.markdown("#### 📜 Historial reciente")
+        st.dataframe(df_comb[["fecha", "actividad", "meta", "extra"]].head(5), use_container_width=True, hide_index=True)
+ 
+ 
+# ============================================================
+# MÓDULO: MOVILIDAD
+# ============================================================
+ 
+def render_mobility(user: str) -> None:
+    st.markdown("### 🧘 Sesión de Movilidad y Regeneración")
+    st.caption("La recuperación también es entrenamiento. Registra tus sesiones de movilidad y recuperación activa.")
+ 
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        with st.form("f_mov", clear_on_submit=True):
+            mov = st.selectbox("Ejercicio de movilidad", DB_EXERCISES["Movilidad"])
+            dur = st.slider("Duración (minutos)", 1, 60, 10)
+            sensacion = st.select_slider("Sensación al terminar", options=["Tenso", "Normal", "Suelto", "Óptimo"])
+            if st.form_submit_button("Registrar sesión"):
+                save_entry(user, "Movilidad", mov, dur, f"{dur} min", sensacion)
+                st.success(f"Sesión de {mov} guardada.")
+ 
+        info = DB_EXERCISE_INFO.get(mov)
+        if info:
+            st.caption(f"💡 **Enfoque:** {info[0]} — {info[1]}")
+ 
+    with c2:
+        st.markdown("#### 🔄 Rutina rápida sugerida (5 min)")
+        st.write("1. **Movilidad de cadera:** 60s por lado")
+        st.write("2. **Movilidad torácica:** 60s en rodillas")
+        st.write("3. **Estiramiento isquiotibiales:** 60s por lado")
+        st.write("4. **Movilidad de hombro:** 60s con banda o pica")
+        st.write("5. **Respiración diafragmática:** 60s (downregulation del SNC)")
+        st.info("Ideal antes de entrenar o como cierre de un día de descanso.")
+ 
+ 
+# ============================================================
+# MÓDULO: NUTRICIÓN
+# ============================================================
+ 
+def render_nutrition(user: str) -> None:
+    st.markdown("### 🍎 Motor Metabólico & Gestión de Combustible")
+    st.caption("El rendimiento deportivo requiere precisión calórica e hidratación óptima.")
+ 
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        st.markdown("#### 🧮 Calculadora TDEE y objetivos")
+        peso_act = st.number_input("Tu peso actual (kg)", 40.0, 160.0, float(st.session_state.user["weight"]))
+        altura_act = st.number_input("Altura (cm)", 140, 220, int(st.session_state.user["height"]))
+        edad_act = st.number_input("Edad", 15, 80, int(st.session_state.user["age"]))
+        actividad = st.selectbox("Nivel de actividad física", [
+            "Sedentario (poco o ningún ejercicio)",
+            "Ligero (1-3 días/semana)",
+            "Moderado (3-5 días/semana)",
+            "Intenso (6-7 días/semana)",
+            "Atleta de élite (dobles sesiones)",
+        ], index=2)
+ 
+        mult_map = {
+            "Sedentario (poco o ningún ejercicio)": 1.2,
+            "Ligero (1-3 días/semana)": 1.375,
+            "Moderado (3-5 días/semana)": 1.55,
+            "Intenso (6-7 días/semana)": 1.725,
+            "Atleta de élite (dobles sesiones)": 1.9,
+        }
+ 
+        tmb = 10 * peso_act + 6.25 * altura_act - 5 * edad_act + 5
+        tdee = tmb * mult_map[actividad]
+ 
+        st.metric("🔥 Calorías de mantenimiento (TDEE)", f"{tdee:.0f} kcal/día")
+        st.write(f"📉 **Déficit (perder grasa):** {tdee-500:.0f} kcal | 📈 **Superávit (ganar masa):** {tdee+300:.0f} kcal")
+        st.write(f"💧 **Meta de hidratación recomendada:** {(peso_act * 0.04):.1f} litros/día")
+ 
+    with c2:
+        st.markdown("#### 📥 Registro diario de ingesta")
+        with st.form("f_nutricion", clear_on_submit=True):
+            cal_in = st.number_input("Calorías totales ingeridas", 0, 10000, 2500, 50)
+            prot_in = st.number_input("Proteínas (g)", 0, 500, 160, 5)
+            carb_in = st.number_input("Carbohidratos (g)", 0, 1000, 250, 10)
+            fat_in = st.number_input("Grasas (g)", 0, 300, 70, 5)
+            agua_in = st.number_input("Agua consumida (litros)", 0.0, 10.0, 3.0, 0.25)
+            if st.form_submit_button("Guardar macros del día"):
+                save_nutrition(user, cal_in, prot_in, carb_in, fat_in, agua_in)
+                st.success("Ingesta registrada en el historial metabólico.")
+ 
+        df_nut = load_nutrition(user)
+        if not df_nut.empty:
+            st.markdown("#### 📜 Historial nutricional reciente")
+            st.dataframe(
+                df_nut[["fecha", "calorias", "proteina", "carbs", "grasa", "agua_l"]].head(5)
+                    .rename(columns={"calorias": "Kcal", "proteina": "Prot(g)", "carbs": "Carbs(g)",
+                                      "grasa": "Grasa(g)", "agua_l": "Agua(L)"}),
+                use_container_width=True, hide_index=True,
+            )
+ 
+ 
+# ============================================================
+# MÓDULO: AI WARM-UP & FORM COACH (NUEVO)
+# ============================================================
+ 
+def render_ai_warmup(user: str) -> None:
+    st.markdown("### 🔥 AI Warm-up & Form Coach")
+    st.caption("Genera un calentamiento personalizado antes de entrenar y resuelve dudas de técnica al instante.")
+ 
+    client = get_ai_client()
+    if client is None:
+        st.warning("Configura el entrenador IA en la barra lateral (🔑 Configurar entrenador IA) para usar este módulo.")
+ 
+    col1, col2 = st.columns([1, 1])
+ 
+    with col1:
+        st.markdown("#### 🌡️ Generador de calentamiento")
+        grupo_focus = st.selectbox("¿Qué vas a entrenar hoy?", list(DB_EXERCISES.keys()))
+        duracion = st.slider("Minutos disponibles para calentar", 3, 20, 8)
+        molestia = st.selectbox("¿Alguna molestia hoy?",
+                                 ["Ninguna", "Hombro", "Rodilla", "Espalda baja", "Cadera", "Otra"])
+        intensidad = st.select_slider("Intensidad de la sesión de hoy", options=["Suave", "Moderada", "Alta", "Máxima"])
+ 
+        if st.button("🔥 Generar calentamiento", use_container_width=True, disabled=client is None):
+            prompt = (
+                f"Soy un atleta que va a entrenar '{grupo_focus}' hoy, con intensidad {intensidad.lower()}. "
+                f"Tengo {duracion} minutos disponibles para calentar. Molestia física a considerar: {molestia}. "
+                "Actúa como preparador físico experto. Dame un calentamiento progresivo en tres bloques "
+                "(movilidad general, activación específica del grupo muscular, y potenciación previa al trabajo "
+                "principal), en formato de lista numerada con tiempos o repeticiones aproximadas en cada ejercicio. "
+                "Sé breve, concreto y responde en español."
+            )
+            resultado = call_ai(client, prompt)
+            if resultado:
+                st.session_state["ultimo_calentamiento"] = resultado
+                st.session_state["ultimo_calentamiento_meta"] = (grupo_focus, intensidad, molestia)
+ 
+        if "ultimo_calentamiento" in st.session_state:
+            st.markdown(
+                f'<div class="ia-card"><div class="ia-tag">🔥 Calentamiento sugerido</div>'
+                f'{st.session_state["ultimo_calentamiento"]}</div>',
+                unsafe_allow_html=True,
+            )
+            if st.button("💾 Guardar en mi historial"):
+                g, i, m = st.session_state.get("ultimo_calentamiento_meta", (grupo_focus, intensidad, molestia))
+                save_entry(user, "IA-Calentamiento", g, 0, i, m)
+                st.success("Calentamiento guardado en tu historial.")
+ 
+    with col2:
+        st.markdown("#### 💬 Pregúntale a tu entrenador IA")
+        st.caption("Dudas de técnica, dolor durante el ejercicio, sustituciones de ejercicios, etc.")
+ 
+        if "chat_coach" not in st.session_state:
+            st.session_state["chat_coach"] = []
+ 
+        chat_box = st.container(height=320)
+        with chat_box:
+            for rol, msg in st.session_state["chat_coach"]:
+                with st.chat_message(rol):
+                    st.write(msg)
+ 
+        pregunta = st.chat_input("Ej: ¿Cómo evito que me duela la muñeca en press banca?",
+                                  disabled=client is None)
+        if pregunta:
+            st.session_state["chat_coach"].append(("user", pregunta))
+ 
+            system = (
+                "Eres un entrenador personal y fisioterapeuta deportivo experto. Respondes en español, "
+                "de forma breve, clara y práctica, priorizando siempre la seguridad. Si detectas una posible "
+                "lesión seria, recomienda consultar a un profesional de la salud de forma presencial."
+            )
+            respuesta = call_ai(client, pregunta, system=system) or \
+                "No pude generar una respuesta, inténtalo de nuevo."
+            st.session_state["chat_coach"].append(("assistant", respuesta))
+            st.rerun()
+ 
+ 
+# ============================================================
+# MÓDULO: BIBLIOTECA DE EJERCICIOS
+# ============================================================
+ 
+def render_library() -> None:
+    st.markdown("### 📚 Biblioteca de Ejercicios y Biomecánica")
+    total_ejercicios = sum(len(v) for v in DB_EXERCISES.values())
+    st.caption(f"Consulta técnica y grupo muscular de cada ejercicio disponible en la app · "
+               f"**{total_ejercicios} ejercicios** en {len(DB_EXERCISES)} categorías.")
+ 
+    if "favoritos" not in st.session_state:
+        st.session_state["favoritos"] = set()
+ 
+    cat_sel = st.selectbox("Categoría", list(DB_EXERCISES.keys()))
+    busqueda = st.text_input("🔍 Buscar ejercicio por nombre")
+    solo_fav = st.checkbox("⭐ Mostrar solo favoritos")
+ 
+    lista = DB_EXERCISES[cat_sel]
+    if busqueda:
+        lista = [e for e in lista if busqueda.lower() in e.lower()]
+    if solo_fav:
+        lista = [e for e in lista if e in st.session_state["favoritos"]]
+ 
+    if not lista:
+        st.info("No se encontraron ejercicios con esos filtros.")
+ 
+    for ej in lista:
+        info = DB_EXERCISE_INFO.get(ej, ("Consulta con tu entrenador", "Aún no hay descripción técnica cargada."))
+        col_a, col_b = st.columns([6, 1])
+        with col_a:
+            st.markdown(f"**{ej}**")
+            st.caption(f"🎯 Grupo: {info[0]}")
+            st.caption(f"📝 Técnica: {info[1]}")
+        with col_b:
+            es_fav = ej in st.session_state["favoritos"]
+            if st.button("⭐" if es_fav else "☆", key=f"fav_{ej}"):
+                if es_fav:
+                    st.session_state["favoritos"].discard(ej)
+                else:
+                    st.session_state["favoritos"].add(ej)
+                st.rerun()
+        st.divider()
+ 
+ 
+# ============================================================
+# MÓDULO: OBJETIVOS Y RACHA
+# ============================================================
+ 
+def render_goals(user: str) -> None:
+    st.markdown("### 🎯 Objetivos, Racha y Medallas")
+    df_all = load_entries(user)
+    fechas = pd.to_datetime(df_all["fecha"]).dt.date.unique() if not df_all.empty else []
+ 
+    racha = 0
+    if len(fechas) > 0:
+        dia = datetime.now().date()
+        fechas_set = set(fechas)
+        while dia in fechas_set:
+            racha += 1
+            dia = date.fromordinal(dia.toordinal() - 1)
+ 
+    c1, c2, c3 = st.columns(3)
+    c1.metric("🔥 Racha actual", f"{racha} días")
+    c2.metric("📦 Sesiones totales", len(df_all))
+    meta_semanal = st.number_input("Meta semanal (sesiones)", 1, 14, 4)
+ 
+    hoy = datetime.now().date()
+    semana = [d for d in fechas if (hoy - d).days < 7]
+    c3.metric("✅ Esta semana", f"{len(semana)}/{meta_semanal}")
+    st.progress(min(len(semana) / meta_semanal, 1.0))
+ 
+    st.divider()
+    st.markdown("#### 🏅 Sistema de Logros del Operador")
+    b1, b2, b3, b4 = st.columns(4)
+    b1.info(f"🏆 **Iniciado**\n\n{'✅ Desbloqueado' if len(df_all) >= 1 else '🔒 Regístrate 1 vez'}")
+    b2.info(f"🔥 **Constante**\n\n{'✅ Desbloqueado' if racha >= 3 else f'🔒 Racha de 3 días ({racha}/3)'}")
+    b3.info(f"⚡ **Imparable**\n\n{'✅ Desbloqueado' if len(df_all) >= 25 else f'🔒 25 sesiones ({len(df_all)}/25)'}")
+    b4.info(f"🧬 **Atleta Élite**\n\n{'✅ Desbloqueado' if len(df_all) >= 100 else f'🔒 100 sesiones ({len(df_all)}/100)'}")
+ 
+    st.divider()
+    st.markdown("### ⚖️ Registro Corporal")
+    with st.form("f_metric", clear_on_submit=True):
+        cm1, cm2, cm3, cm4 = st.columns(4)
+        peso_m = cm1.number_input("Peso (kg)", 30.0, 250.0, float(st.session_state.user["weight"]), 0.1)
+        grasa_m = cm2.number_input("% Grasa (opcional)", 0.0, 60.0, 15.0, 0.5)
+        cintura_m = cm3.number_input("Cintura (cm, opcional)", 0.0, 200.0, 80.0, 0.5)
+        brazo_m = cm4.number_input("Brazo (cm, opcional)", 0.0, 80.0, 38.0, 0.5)
+        nota_m = st.text_input("Nota", "")
+ 
+        if st.form_submit_button("Guardar medición"):
+            nota_completa = f"{nota_m} | Cintura:{cintura_m}cm Brazo:{brazo_m}cm".strip(" |")
+            save_metric(user, peso_m, grasa_m, nota_completa)
+            st.session_state.user["weight"] = peso_m
+            st.success("Medición guardada.")
+ 
+    df_metrics = load_metrics(user)
+    if not df_metrics.empty:
+        fig_m = px.line(df_metrics, x="fecha", y="peso", markers=True, template="plotly_dark",
+                         title="Evolución de peso corporal (kg)")
+        fig_m.update_traces(line_color="#35d68c")
+        st.plotly_chart(fig_m, use_container_width=True)
+        with st.expander("Ver historial completo de mediciones"):
+            st.dataframe(df_metrics, use_container_width=True, hide_index=True)
+    else:
+        st.info("Registra tu primera medición para ver tu evolución de peso aquí.")
+ 
+ 
+# ============================================================
+# MÓDULO: AI ROUTINE COACH
+# ============================================================
+ 
+def render_ai_routine_coach(user: str) -> None:
+    st.markdown("### 🤖 AI Routine Coach")
+    st.caption("Describe tu rutina actual en texto y/o sube una foto. La IA la analizará biomecánicamente "
+               "y propondrá una versión mejorada.")
+ 
+    client = get_ai_client()
+    if client is None:
+        st.warning("Configura el entrenador IA en la barra lateral (🔑 Configurar entrenador IA) para usar este módulo.")
+ 
+    objetivo = st.selectbox("Objetivo principal", ["Hipertrofia", "Fuerza máxima", "Pérdida de grasa",
+                                                      "Resistencia / Híbrido"])
+    nivel = st.select_slider("Nivel", options=["Principiante", "Intermedio", "Avanzado"])
+    dias_disp = st.slider("Días disponibles por semana", 1, 7, 4)
+ 
+    st.markdown("**Preguntas rápidas de contexto:**")
+    qc1, qc2, qc3 = st.columns(3)
+    lesion = qc1.selectbox("¿Alguna molestia/lesión?", ["Ninguna", "Hombro", "Rodilla", "Espalda baja", "Otra"])
+    equipo = qc2.selectbox("Equipo disponible", ["Gym completo", "Mancuernas/casa", "Solo peso corporal"])
+    tiempo_sesion = qc3.selectbox("Tiempo por sesión", ["30 min", "45 min", "60 min", "90+ min"])
+ 
+    rutina_texto = st.text_area("Describe tu rutina actual (días, ejercicios, series/reps)", height=150)
+    foto = st.file_uploader("O sube una foto de tu rutina o pizarra", type=["png", "jpg", "jpeg"])
+ 
+    if st.button("🧠 Analizar y mejorar con IA", disabled=client is None):
+        if not rutina_texto and not foto:
+            st.warning("Describe tu rutina en texto o sube una foto para poder analizarla.")
+        else:
+            image_b64, media_type = None, "image/jpeg"
+            if foto is not None:
+                image_b64 = base64.b64encode(foto.read()).decode("utf-8")
+                media_type = "image/png" if foto.type == "image/png" else "image/jpeg"
+ 
+            prompt = (
+                f"Soy un atleta de nivel {nivel}, mi objetivo es {objetivo}. "
+                f"Dispongo de {dias_disp} días por semana, sesiones de {tiempo_sesion}, equipo: {equipo}. "
+                f"Molestia física a considerar: {lesion}. "
+                f"Esta es mi rutina actual: {rutina_texto or '(ver imagen adjunta)'}. "
+                "Actúa como fisiólogo del ejercicio y entrenador de élite. Analiza la rutina, señala 2-3 puntos "
+                "débiles concretos (ej. balance de empuje/tirón, volumen basura o selección de ejercicios), y "
+                "propón una versión mejorada organizada por día, indicando series, reps, RIR sugerido y tiempos "
+                "de descanso. Sé riguroso y breve. Responde en español."
+            )
+            resultado = call_ai(client, prompt, image_b64=image_b64, media_type=media_type)
+            if resultado:
+                st.session_state["ultimo_plan_ia"] = resultado
+                st.session_state["ultimo_plan_meta"] = (objetivo, nivel)
+ 
+    if "ultimo_plan_ia" in st.session_state:
+        st.markdown(
+            f'<div class="ia-card"><div class="ia-tag">🧬 Plan mejorado por IA</div>'
+            f'{st.session_state["ultimo_plan_ia"]}</div>',
+            unsafe_allow_html=True,
+        )
+        if st.button("💾 Guardar este plan en mi historial"):
+            obj, niv = st.session_state.get("ultimo_plan_meta", (objetivo, nivel))
+            save_entry(user, "IA-Plan", obj, 0, niv, "Plan generado por IA")
+            st.success("Plan guardado en tu historial exitosamente.")
+ 
+    df_planes = load_entries(user)
+    df_planes = df_planes[df_planes["tipo"] == "IA-Plan"] if not df_planes.empty else df_planes
+    if not df_planes.empty:
+        with st.expander(f"📁 Historial de planes generados ({len(df_planes)})"):
+            st.dataframe(
+                df_planes[["fecha", "actividad", "meta"]].rename(columns={"actividad": "objetivo", "meta": "nivel"}),
+                use_container_width=True, hide_index=True,
+            )
+ 
+ 
+# ============================================================
+# MÓDULO: ANALÍTICA GLOBAL
+# ============================================================
+ 
+def render_analytics(user: str) -> None:
+    df = load_entries(user)
+    if df.empty:
+        st.info("Todavía no hay datos que graficar. Registra tus entrenamientos para encender la telemetría.")
+        return
+ 
+    st.markdown("### 📈 Performance Telemetry")
+    fig1 = px.line(df.sort_values("id"), x="fecha", y="valor", color="tipo", markers=True,
+                   template="plotly_dark", title="Evolución de carga / volumen en el tiempo")
+    fig1.update_traces(line_color="#35d68c")
+    st.plotly_chart(fig1, use_container_width=True)
+ 
+    c_a1, c_a2 = st.columns(2)
+    fig2 = px.pie(df, names="tipo", hole=0.6, title="Balance del atleta por módulo",
+                  color_discrete_sequence=["#35d68c", "#00d4ff", "#ff4b4b", "#f5a623", "#a86bff"])
+    c_a1.plotly_chart(fig2, use_container_width=True)
+ 
+    fig3 = px.bar(df, x="actividad", y="valor", color="tipo", title="Volumen acumulado por ejercicio / actividad")
+    c_a2.plotly_chart(fig3, use_container_width=True)
+ 
+    st.divider()
+    st.markdown("### 🏆 Récords Personales (PRs Máximos)")
+    prs = df.groupby("actividad")["valor"].max().sort_values(ascending=False).head(10)
+    st.dataframe(
+        prs.reset_index().rename(columns={"actividad": "Ejercicio/Actividad", "valor": "Mejor marca registrada"}),
+        use_container_width=True, hide_index=True,
+    )
+ 
+ 
+# ============================================================
+# MÓDULO: GESTIÓN DE DATOS Y BACKUP
+# ============================================================
+ 
+def render_data_management(user: str) -> None:
+    st.markdown("### 🛠️ Administración de Datos y Copias de Seguridad")
+    st.caption("Gestiona tu base de datos local SQLite, exporta reportes para tu entrenador o elimina registros erróneos.")
+ 
+    tab1, tab2 = st.tabs(["📦 Exportar Datos", "🗑️ Eliminar Registros Erróneos"])
+ 
+    with tab1:
+        st.write("Descarga tu historial completo en formato CSV compatible con Excel, Google Sheets y software de coaching.")
+        df_export = load_entries(user)
+        if not df_export.empty:
+            csv = df_export.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="📥 Descargar historial de entrenamientos (CSV)",
+                data=csv,
+                file_name=f"morphai_log_{user.lower()}_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+            )
+        else:
+            st.warning("No hay datos para exportar.")
+ 
+    with tab2:
+        st.write("Si cometiste un error en un registro anterior, búscalo por ID y bórralo de forma permanente.")
+        df_all = load_entries(user)
+        if not df_all.empty:
+            st.dataframe(df_all[["id", "fecha", "tipo", "actividad", "meta", "extra"]],
+                         use_container_width=True, hide_index=True)
+            id_borrar = st.number_input("ID del registro a eliminar", min_value=1, step=1)
+            if st.button("🗑️ Eliminar registro definitivamente", type="primary"):
+                delete_record("entries", id_borrar, user)
+                st.success(f"Registro ID {id_borrar} eliminado correctamente.")
+                time.sleep(1)
+                st.rerun()
+        else:
+            st.info("La base de datos está limpia.")
+ 
+ 
+# ============================================================
+# CABECERA
+# ============================================================
+ 
+def render_header(user: str) -> None:
+    df_home = load_entries(user)
+    total = len(df_home)
+    ultima = df_home.iloc[0]["fecha"] if total > 0 else "Sin registros aún"
+ 
+    df_readiness = load_readiness(user)
+    readiness_val = f"{df_readiness.iloc[0]['score']:.0f}%" if not df_readiness.empty else "N/A"
+ 
+    st.markdown(f"""
+    <div class="hero-card">
+        <div>
+            <div class="hero-eyebrow">MorphAI · Telemetría y Rendimiento v{APP_VERSION}</div>
+            <p class="hero-title">Hola, {user.title()} 👋</p>
+            <p class="hero-sub">Sistema neural activo. Selecciona un módulo en el menú lateral para gestionar tu día atlético.</p>
+        </div>
+        <div class="hero-badge">SESIONES: {total} | READINESS: {readiness_val}<br>ÚLTIMA ACTIVIDAD: {ultima}</div>
+    </div>
+    """, unsafe_allow_html=True)
+ 
+ 
+# ============================================================
+# ENRUTADOR PRINCIPAL
+# ============================================================
+ 
+MODULE_HANDLERS = {
+    "🧠 Neural Readiness & Sueño": render_readiness,
+    "🏋️ Entrenamiento de Fuerza": render_strength,
+    "🏃 Running Telemetry": render_running,
+    "🥊 Combate & Explosividad": render_combat,
+    "🧘 Movilidad & Recuperación": render_mobility,
+    "🍎 Nutrición & Macros": render_nutrition,
+    "🔥 AI Warm-up & Form Coach": render_ai_warmup,
+    "🎯 Objetivos & Racha": render_goals,
+    "🤖 AI Routine Coach": render_ai_routine_coach,
+    "📊 Analítica Global": render_analytics,
+    "🛠️ Gestión de Datos & Backup": render_data_management,
+}
+ 
+ 
+def main() -> None:
+    apply_custom_css()
+    user, modulo = render_sidebar()
+    render_header(user)
+ 
+    if modulo == "📚 Biblioteca de Ejercicios":
+        render_library()
+    else:
+        MODULE_HANDLERS[modulo](user)
+ 
     st.markdown("---")
-    st.caption(f"MORPHAI PERFORMANCE OS · V{APP_VERSION} · SQLite local · © 2026")
-
-
+    st.markdown(f"**{APP_NAME.upper()} v{APP_VERSION} APEX** | Operador activo: **{user}** | © 2026")
+ 
+ 
 if __name__ == "__main__":
     main()
+ 
