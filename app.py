@@ -1,5 +1,5 @@
 # =================================================================
-# PROJECT: MORPHAI NEURAL PERFORMANCE OS (v19.0 - APEX EDITION / BLUE-WHITE)
+# PROJECT: MORPHAI NEURAL PERFORMANCE OS (v19.0 - APEX EDITION / DARK-ENERGY)
 # AUTHOR: JOSIAS MARTINEZ & AI CO-ARCHITECT
 # =================================================================
 import streamlit as st
@@ -143,31 +143,31 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
 :root {
-    --bg-0: #eef3fb;
-    --bg-1: #ffffff;
-    --panel: #ffffff;
-    --line: rgba(37, 99, 235, 0.16);
-    --signal: #2563eb;
-    --signal-soft: rgba(37, 99, 235, 0.10);
-    --success: #16a34a;
-    --success-soft: rgba(22, 163, 74, 0.10);
-    --amber: #f59e0b;
-    --amber-soft: rgba(245, 158, 11, 0.10);
-    --red: #e11d48;
-    --red-soft: rgba(225, 29, 72, 0.10);
-    --ink: #0b1220;
-    --text-hi: #0b1c33;
-    --text-mid: #4b6280;
-    --text-low: #8296b3;
+    --bg-0: #0b0e14;
+    --bg-1: #10141d;
+    --panel: #151a24;
+    --line: rgba(255, 122, 69, 0.20);
+    --signal: #ff7a45;
+    --signal-soft: rgba(255, 122, 69, 0.14);
+    --success: #2ecc71;
+    --success-soft: rgba(46, 204, 113, 0.14);
+    --amber: #ffb020;
+    --amber-soft: rgba(255, 176, 32, 0.14);
+    --red: #ff5470;
+    --red-soft: rgba(255, 84, 112, 0.14);
+    --ink: #0b0e14;
+    --text-hi: #f5f7fb;
+    --text-mid: #aab4c8;
+    --text-low: #6d7890;
 }
 .stApp { background: var(--bg-0); color: var(--text-hi); font-family: 'Inter', sans-serif; }
 h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
 .hero-card {
-    background: linear-gradient(160deg, var(--bg-1) 0%, #f4f8fd 100%);
+    background: linear-gradient(160deg, var(--bg-1) 0%, var(--panel) 100%);
     border: 1px solid var(--line); border-radius: 16px; padding: 28px 32px;
     margin-bottom: 28px; display: flex; justify-content: space-between;
     align-items: center; flex-wrap: wrap; gap: 16px;
-    box-shadow: 0 4px 18px rgba(37, 99, 235, 0.06);
+    box-shadow: 0 4px 18px rgba(255, 122, 69, 0.10);
 }
 .hero-eyebrow { font-family: 'JetBrains Mono', monospace; color: var(--signal); font-size: 0.75rem; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
 .hero-title { font-family: 'Space Grotesk', sans-serif; font-size: 1.9rem; font-weight: 700; color: var(--text-hi); margin: 0; }
@@ -179,7 +179,7 @@ h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
 .live-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--success);
     margin-right:6px; box-shadow: 0 0 0 rgba(22,163,74,0.5); animation: pulseDot 1.6s infinite; }
 @keyframes pulseDot { 0% { box-shadow: 0 0 0 0 rgba(22,163,74,0.5); } 70% { box-shadow: 0 0 0 7px rgba(22,163,74,0); } 100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); } }
-.module-container { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 26px; margin-bottom: 22px; box-shadow: 0 2px 10px rgba(37,99,235,0.05); }
+.module-container { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 26px; margin-bottom: 22px; box-shadow: 0 2px 10px rgba(255,122,69,0.08); }
 .timer-display {
     font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 5.5rem;
     text-align: center; padding: 40px; border-radius: 18px; border: 2px solid var(--amber);
@@ -194,34 +194,37 @@ h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
 .readiness-mid { background: var(--amber-soft); color: var(--amber); border: 1px solid var(--amber); }
 .readiness-low { background: var(--red-soft); color: var(--red); border: 1px solid var(--red); }
 section[data-testid="stSidebar"] { background: var(--bg-1); border-right: 1px solid var(--line); border-right-width: 2px; box-shadow: 2px 0 12px rgba(11,18,32,0.04); }
-.sidebar-title-pill { display:inline-block; background: var(--ink); color:#ffffff; padding: 8px 14px; border-radius: 10px;
+.sidebar-title-pill { display:inline-block; background: var(--signal); color: var(--ink); padding: 8px 14px; border-radius: 10px;
     font-family:'Space Grotesk',sans-serif; letter-spacing:2px; font-size:1.15rem; font-weight:700; }
 .auth-card { max-width: 420px; margin: 40px auto; background: var(--panel); border: 1px solid var(--line);
-    border-radius: 18px; padding: 34px; box-shadow: 0 8px 30px rgba(37,99,235,0.10); }
+    border-radius: 18px; padding: 34px; box-shadow: 0 8px 30px rgba(255,122,69,0.14); }
 
-/* --- LEGIBILIDAD: forzar letras oscuras sobre el fondo blanco en TODA la app --- */
-:root { --text-color: #0b1c33; --background-color: #ffffff; --secondary-background-color: #f4f8fd; }
+/* --- LEGIBILIDAD: forzar texto claro y de alto contraste sobre el fondo oscuro en TODA la app --- */
+:root { --text-color: #f5f7fb; --background-color: #0b0e14; --secondary-background-color: #151a24; }
 .stApp, .stApp p, .stApp span, .stApp label, .stApp li, .stApp div,
 .stMarkdown, .stCaption, .stText, .stAlert, .stTabs, .stRadio, .stSelectbox,
 h1, h2, h3, h4, h5, h6 { color: var(--text-hi); }
 section[data-testid="stSidebar"] * { color: var(--text-hi); }
 .stTextInput input, .stNumberInput input, .stTextArea textarea, .stDateInput input {
-    background-color: #ffffff !important; color: var(--text-hi) !important;
+    background-color: var(--panel) !important; color: var(--text-hi) !important;
     border: 1px solid var(--line) !important;
 }
 div[data-baseweb="select"] > div, div[data-baseweb="select"] span {
-    background-color: #ffffff !important; color: var(--text-hi) !important;
+    background-color: var(--panel) !important; color: var(--text-hi) !important;
 }
 div[data-baseweb="popover"] li, div[data-baseweb="menu"] li,
 div[data-baseweb="popover"] *, ul[role="listbox"] * {
-    background-color: #ffffff !important; color: var(--text-hi) !important;
+    background-color: var(--panel) !important; color: var(--text-hi) !important;
+}
+div[data-testid*="Alert"], div[data-testid*="Notification"], .stAlert {
+    background-color: var(--panel) !important; border: 1px solid var(--line) !important;
 }
 .stButton > button, .stFormSubmitButton > button, .stDownloadButton > button {
-    background-color: #ffffff; color: var(--signal) !important;
-    border: 1.5px solid var(--signal); font-weight: 600;
+    background-color: var(--signal); color: var(--ink) !important;
+    border: 1.5px solid var(--signal); font-weight: 700;
 }
 .stButton > button:hover, .stFormSubmitButton > button:hover, .stDownloadButton > button:hover {
-    background-color: var(--signal); color: #ffffff !important; border-color: var(--signal);
+    background-color: var(--panel); color: var(--signal) !important; border-color: var(--signal);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -274,9 +277,9 @@ def render_mannequin(grupo, key="m"):
         "Calistenia": "full",
     }
     activo = grupo_map.get(grupo, "full")
-    AZUL = "#2563eb"
-    ACERO = "#c9d8ee"   # tono base "en reposo" (gris-azulado suave, no blanco puro)
-    TINTA = "#16305c"
+    AZUL = "#ff7a45"
+    ACERO = "#3d4a63"   # tono base "en reposo" (acero azulado, visible sobre panel oscuro)
+    TINTA = "#f5f7fb"
 
     def activo_aqui(part):
         return activo in (part, "full")
@@ -290,7 +293,7 @@ def render_mannequin(grupo, key="m"):
     anim_arms = "swingArms 1.3s ease-in-out infinite" if activo in ("chest", "back", "shoulders", "arms", "full") else "none"
     anim_legs = "swingLegs 1.3s ease-in-out infinite" if activo in ("legs", "full") else "none"
     anim_core = "pulseCore 1.1s ease-in-out infinite" if activo == "core" else "none"
-    nota_back = "<p style='text-align:center;color:#4b6280;font-size:0.7rem;'>Vista frontal simplificada (dorsales laterales)</p>" if grupo == "Espalda" else ""
+    nota_back = "<p style='text-align:center;color:#aab4c8;font-size:0.7rem;'>Vista frontal simplificada (dorsales laterales)</p>" if grupo == "Espalda" else ""
 
     html = f"""
     <div style="display:flex;justify-content:center;padding:6px 0 0 0;">
@@ -315,7 +318,7 @@ def render_mannequin(grupo, key="m"):
           <stop offset="0%" stop-color="{ac_luz}"/><stop offset="100%" stop-color="{ac_som}"/>
         </linearGradient>
         <filter id="{key}-sombra" x="-30%" y="-10%" width="160%" height="130%">
-          <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#0b1c33" flood-opacity="0.18"/>
+          <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000000" flood-opacity="0.35"/>
         </filter>
       </defs>
       <g filter="url(#{key}-sombra)">
@@ -359,11 +362,11 @@ def render_mannequin(grupo, key="m"):
         <circle cx="110" cy="32" r="20" fill="url(#{key}-gP)" stroke="{TINTA}" stroke-width="1" stroke-opacity="0.25"/>
       </g>
       <!-- indicador verde "en marcha" -->
-      <circle cx="198" cy="26" r="6" fill="#16a34a" class="{key}-dot"/>
+      <circle cx="198" cy="26" r="6" fill="#2ecc71" class="{key}-dot"/>
     </svg>
     </div>
-    <p style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:#2563eb;letter-spacing:1px;text-transform:uppercase;margin-top:2px;">
-    <span style="color:#16a34a;">●</span> Zona activa: {grupo}
+    <p style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:#ff7a45;letter-spacing:1px;text-transform:uppercase;margin-top:2px;">
+    <span style="color:#2ecc71;">●</span> Zona activa: {grupo}
     </p>
     {nota_back}
     """
@@ -510,8 +513,8 @@ if system_mode == "🧠 NEURAL READINESS & SUEÑO":
             st.markdown(f'<div class="readiness-box {box_class}">READINESS: {last_score:.0f}%<br><span style="font-size:1rem;">{status}</span></div>', unsafe_allow_html=True)
             st.info(f"💡 **Recomendación táctica:** {advice}")
             st.divider()
-            fig_r = px.line(df_r.head(14).sort_values("id"), x="fecha", y="score", markers=True, template="plotly_white", title="Tendencia de Readiness (Últimos 14 registros)")
-            fig_r.update_traces(line_color="#16a34a")
+            fig_r = px.line(df_r.head(14).sort_values("id"), x="fecha", y="score", markers=True, template="plotly_dark", title="Tendencia de Readiness (Últimos 14 registros)")
+            fig_r.update_traces(line_color="#2ecc71")
             st.plotly_chart(fig_r, use_container_width=True)
         else:
             st.info("Registra tu primer check-in matutino para calibrar tu algoritmo de entrenamiento.")
@@ -836,8 +839,8 @@ elif system_mode == "🎯 OBJETIVOS & RACHA":
             st.success("Medición guardada.")
     df_metrics = load_metrics(USER)
     if not df_metrics.empty:
-        fig_m = px.line(df_metrics, x="fecha", y="peso", markers=True, template="plotly_white", title="Evolución de Peso Corporal (kg)")
-        fig_m.update_traces(line_color="#2563eb")
+        fig_m = px.line(df_metrics, x="fecha", y="peso", markers=True, template="plotly_dark", title="Evolución de Peso Corporal (kg)")
+        fig_m.update_traces(line_color="#ff7a45")
         st.plotly_chart(fig_m, use_container_width=True)
         with st.expander("Ver historial completo de mediciones"):
             st.dataframe(df_metrics, use_container_width=True, hide_index=True)
@@ -916,14 +919,16 @@ elif system_mode == "📊 ANALÍTICA GLOBAL":
     if not df.empty:
         st.markdown("### 📈 Performance Telemetry")
         fig1 = px.line(df.sort_values("id"), x="fecha", y="valor", color="tipo", markers=True,
-                       template="plotly_white", title="Evolución de Carga / Volumen en el Tiempo")
+                       template="plotly_dark", title="Evolución de Carga / Volumen en el Tiempo")
         st.plotly_chart(fig1, use_container_width=True)
         c_a1, c_a2 = st.columns(2)
         fig2 = px.pie(df, names='tipo', hole=0.6, title="Balance del Atleta por Módulo",
-                      color_discrete_sequence=['#2563eb', '#16a34a', '#f59e0b', '#e11d48', '#7c3aed', '#0ea5e9'])
+                      color_discrete_sequence=['#ff7a45', '#2ecc71', '#22d3ee', '#ffb020', '#ff5470', '#7c3aed'])
+        fig2.update_layout(template="plotly_dark")
         c_a1.plotly_chart(fig2)
         fig3 = px.bar(df, x="actividad", y="valor", color="tipo", title="Volumen Acumulado por Ejercicio / Actividad",
-                      color_discrete_sequence=['#2563eb', '#16a34a', '#f59e0b', '#e11d48', '#7c3aed', '#0ea5e9'])
+                      color_discrete_sequence=['#ff7a45', '#2ecc71', '#22d3ee', '#ffb020', '#ff5470', '#7c3aed'])
+        fig3.update_layout(template="plotly_dark")
         c_a2.plotly_chart(fig3)
         st.divider()
         st.markdown("### 🏆 Récords Personales (PRs Máximos)")
