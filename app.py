@@ -190,6 +190,31 @@ h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
 section[data-testid="stSidebar"] { background: var(--bg-1); border-right: 1px solid var(--line); }
 .auth-card { max-width: 420px; margin: 40px auto; background: var(--panel); border: 1px solid var(--line);
     border-radius: 18px; padding: 34px; box-shadow: 0 8px 30px rgba(37,99,235,0.10); }
+
+/* --- LEGIBILIDAD: forzar letras oscuras sobre el fondo blanco en TODA la app --- */
+:root { --text-color: #0b1c33; --background-color: #ffffff; --secondary-background-color: #f4f8fd; }
+.stApp, .stApp p, .stApp span, .stApp label, .stApp li, .stApp div,
+.stMarkdown, .stCaption, .stText, .stAlert, .stTabs, .stRadio, .stSelectbox,
+h1, h2, h3, h4, h5, h6 { color: var(--text-hi); }
+section[data-testid="stSidebar"] * { color: var(--text-hi); }
+.stTextInput input, .stNumberInput input, .stTextArea textarea, .stDateInput input {
+    background-color: #ffffff !important; color: var(--text-hi) !important;
+    border: 1px solid var(--line) !important;
+}
+div[data-baseweb="select"] > div, div[data-baseweb="select"] span {
+    background-color: #ffffff !important; color: var(--text-hi) !important;
+}
+div[data-baseweb="popover"] li, div[data-baseweb="menu"] li,
+div[data-baseweb="popover"] *, ul[role="listbox"] * {
+    background-color: #ffffff !important; color: var(--text-hi) !important;
+}
+.stButton > button, .stFormSubmitButton > button, .stDownloadButton > button {
+    background-color: #ffffff; color: var(--signal) !important;
+    border: 1.5px solid var(--signal); font-weight: 600;
+}
+.stButton > button:hover, .stFormSubmitButton > button:hover, .stDownloadButton > button:hover {
+    background-color: var(--signal); color: #ffffff !important; border-color: var(--signal);
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -886,4 +911,3 @@ elif system_mode == "🛠️ GESTIÓN DE DATOS & BACKUP":
 # --- FOOTER ---
 st.markdown("---")
 st.markdown(f"**MORPHAI NEURAL PERFORMANCE OS v19.0 APEX** | Operador Activo: **{USER}** | © 2026 Josías Martínez")
-    
