@@ -17,9 +17,7 @@ Configuración de la IA (recomendado para producción):
 from __future__ import annotations
 
 import base64
-import hashlib
 import re
-import secrets
 import sqlite3
 import time
 from datetime import date, datetime, timedelta
@@ -79,14 +77,24 @@ def get_connection() -> sqlite3.Connection:
     """Crea (o reutiliza) la conexión a la base de datos SQLite. No crea tablas aquí:
     si esta función queda cacheada de una versión anterior del código, las tablas nuevas
     (como 'users') nunca se crearían. Ver ensure_schema()."""
-    return sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=30)
+    # Modo WAL: permite lecturas y escrituras concurrentes sin que se bloqueen entre sí.
+    # Es el modo recomendado cuando varias sesiones de Streamlit comparten un mismo archivo
+    # SQLite (evita el típico "database is locked").
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA busy_timeout=30000;")
+    return conn
 
 
 def ensure_schema() -> None:
     """Se llama en cada carga de la app (no está cacheada). CREATE TABLE IF NOT EXISTS es
     barato e idempotente, así que esto garantiza que el esquema esté siempre al día aunque
     get_connection() venga de una versión anterior cacheada del proceso."""
-    _create_tables(get_connection())
+    try:
+        _create_tables(get_connection())
+    except sqlite3.OperationalError as exc:
+        st.error(f"⚠️ No se pudo preparar la base de datos: {exc}")
+        st.stop()
 
 
 def _create_tables(conn: sqlite3.Connection) -> None:
@@ -115,12 +123,6 @@ def _create_tables(conn: sqlite3.Connection) -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user TEXT, fecha TEXT, calorias INTEGER, proteina INTEGER,
             carbs INTEGER, grasa INTEGER, agua_l REAL
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT, email TEXT UNIQUE, password_hash TEXT, salt TEXT, created_at TEXT
         )
     """)
     conn.commit()
@@ -188,63 +190,6 @@ def delete_record(table: str, record_id: int, user: str) -> None:
     conn = get_connection()
     conn.execute(f"DELETE FROM {table} WHERE id=? AND user=?", (record_id, user))
     conn.commit()
-
-
-# ============================================================
-# CUENTAS DE USUARIO (registro / login)
-# ============================================================
-
-def _hash_password(password: str, salt_hex: str) -> str:
-    """PBKDF2-SHA256 con 100k iteraciones. No es un sistema de grado bancario, pero nunca
-    guarda la contraseña en texto plano y usa una sal única por usuario."""
-    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), bytes.fromhex(salt_hex), 100_000).hex()
-
-
-def create_user(name: str, email: str, password: str) -> tuple[bool, str]:
-    """Crea una cuenta nueva. Devuelve (éxito, mensaje)."""
-    conn = get_connection()
-    email_norm = email.strip().lower()
-    try:
-        existente = conn.execute("SELECT id FROM users WHERE email=?", (email_norm,)).fetchone()
-    except sqlite3.OperationalError:
-        ensure_schema()
-        existente = conn.execute("SELECT id FROM users WHERE email=?", (email_norm,)).fetchone()
-
-    if existente:
-        return False, "Ya existe una cuenta registrada con ese correo."
-
-    salt_hex = secrets.token_hex(16)
-    pw_hash = _hash_password(password, salt_hex)
-    conn.execute(
-        "INSERT INTO users (name, email, password_hash, salt, created_at) VALUES (?,?,?,?,?)",
-        (name.strip().title(), email_norm, pw_hash, salt_hex, datetime.now().strftime("%Y-%m-%d %H:%M")),
-    )
-    conn.commit()
-    return True, "Cuenta creada correctamente."
-
-
-def authenticate_user(email: str, password: str) -> Optional[dict]:
-    """Verifica correo/contraseña. Devuelve el perfil del usuario o None si no coincide."""
-    conn = get_connection()
-    email_norm = email.strip().lower()
-    try:
-        fila = conn.execute(
-            "SELECT name, email, password_hash, salt FROM users WHERE email=?", (email_norm,)
-        ).fetchone()
-    except sqlite3.OperationalError:
-        ensure_schema()
-        fila = conn.execute(
-            "SELECT name, email, password_hash, salt FROM users WHERE email=?", (email_norm,)
-        ).fetchone()
-
-    if fila is None:
-        return None
-
-    name, email_db, pw_hash, salt_hex = fila
-    if _hash_password(password, salt_hex) != pw_hash:
-        return None
-
-    return {"name": name, "email": email_db, "weight": 80, "height": 180, "age": 28}
 
 
 # ============================================================
@@ -654,9 +599,7 @@ def render_sidebar() -> tuple[str, str]:
         st.caption(f"v{APP_VERSION} · Apex Edition")
         st.divider()
 
-        st.markdown(f"👤 **{st.session_state.user['name']}**  \n"
-                    f"<span style='color:var(--text-mid); font-size:0.8rem;'>{st.session_state.user['email']}</span>",
-                    unsafe_allow_html=True)
+        st.markdown(f"👤 **{st.session_state.user['name']}**", unsafe_allow_html=True)
         if st.button("🔓 Cerrar sesión", use_container_width=True):
             st.session_state["logged_in"] = False
             st.rerun()
@@ -681,7 +624,7 @@ def render_sidebar() -> tuple[str, str]:
         st.divider()
         st.caption("🔒 Cada operador ve solo su propio historial.")
 
-    return st.session_state.user["email"], modulo
+    return st.session_state.user["id"], modulo
 
 
 # ============================================================
@@ -1519,8 +1462,9 @@ MODULE_HANDLERS = {
 # ============================================================
 
 def render_login_screen() -> None:
-    """Pantalla de entrada con cuentas reales (correo + contraseña) para que cada persona
-    tenga su propio historial, sin depender de que nadie escriba su nombre por error."""
+    """Pantalla de entrada simple: nombre + apellido identifican al operador (sin correo ni
+    contraseña, sin tocar ninguna tabla nueva de la base de datos), y de paso se recogen los
+    datos básicos para que el TDEE y el 1RM ya tengan algo con qué calcular desde el primer día."""
     st.markdown("""
     <div style="text-align:center; margin-top:6vh; margin-bottom:26px;">
         <div style="font-size:3.4rem;">🧬</div>
@@ -1530,54 +1474,37 @@ def render_login_screen() -> None:
             MorphAI Performance OS
         </p>
         <p style="color:var(--text-mid); font-size:0.95rem;">
-            Crea tu cuenta o inicia sesión. Cada operador tiene su propio historial, aislado del resto.
+            Escribe tus datos para empezar. Cada nombre + apellido tiene su propio historial, aislado del resto.
         </p>
     </div>
     """, unsafe_allow_html=True)
 
     _, mid, _ = st.columns([1, 3, 1])
     with mid:
-        tab_login, tab_signup = st.tabs(["🔑 Iniciar sesión", "🆕 Crear cuenta"])
+        with st.container(border=True):
+            c1, c2 = st.columns(2)
+            nombre = c1.text_input("Nombre", placeholder="Ej: Josías", key="perfil_nombre")
+            apellido = c2.text_input("Apellido", placeholder="Ej: Martínez", key="perfil_apellido")
 
-        with tab_login:
-            with st.container(border=True):
-                email_in = st.text_input("Correo", placeholder="tucorreo@ejemplo.com", key="login_email")
-                pass_in = st.text_input("Contraseña", placeholder="••••••••", type="password", key="login_pass")
-                if st.button("🚀 Entrar", use_container_width=True, type="primary"):
-                    if not email_in or not pass_in:
-                        st.warning("Completa correo y contraseña.")
-                    else:
-                        perfil = authenticate_user(email_in, pass_in)
-                        if perfil:
-                            st.session_state["user"] = perfil
-                            st.session_state["logged_in"] = True
-                            st.rerun()
-                        else:
-                            st.error("Correo o contraseña incorrectos.")
+            c3, c4, c5 = st.columns(3)
+            peso = c3.number_input("Peso (kg)", 30.0, 250.0, 75.0, 0.5, key="perfil_peso")
+            altura = c4.number_input("Altura (cm)", 140, 220, 175, key="perfil_altura")
+            edad = c5.number_input("Edad", 12, 90, 25, key="perfil_edad")
 
-        with tab_signup:
-            with st.container(border=True):
-                nombre_su = st.text_input("Nombre", placeholder="Ej: Josías", key="signup_name")
-                email_su = st.text_input("Correo", placeholder="tucorreo@ejemplo.com", key="signup_email")
-                pass_su = st.text_input("Contraseña", placeholder="Mínimo 6 caracteres",
-                                         type="password", key="signup_pass")
-                pass_su2 = st.text_input("Repite la contraseña", type="password", key="signup_pass2")
-
-                if st.button("✅ Crear cuenta", use_container_width=True):
-                    if not nombre_su or not email_su or not pass_su:
-                        st.warning("Rellena todos los campos.")
-                    elif "@" not in email_su or "." not in email_su.split("@")[-1]:
-                        st.warning("Escribe un correo válido.")
-                    elif len(pass_su) < 6:
-                        st.warning("La contraseña debe tener al menos 6 caracteres.")
-                    elif pass_su != pass_su2:
-                        st.warning("Las contraseñas no coinciden.")
-                    else:
-                        ok, msg = create_user(nombre_su, email_su, pass_su)
-                        if ok:
-                            st.success(f"{msg} Ve a la pestaña '🔑 Iniciar sesión' para entrar.")
-                        else:
-                            st.error(msg)
+            if st.button("🚀 Entrar", use_container_width=True, type="primary"):
+                if not nombre.strip() or not apellido.strip():
+                    st.warning("Escribe al menos tu nombre y apellido.")
+                else:
+                    operador_id = f"{nombre.strip()}_{apellido.strip()}".lower().replace(" ", "_")
+                    st.session_state["user"] = {
+                        "id": operador_id,
+                        "name": f"{nombre.strip().title()} {apellido.strip().title()}",
+                        "weight": peso,
+                        "height": altura,
+                        "age": edad,
+                    }
+                    st.session_state["logged_in"] = True
+                    st.rerun()
 
 
 # ============================================================
@@ -1592,14 +1519,14 @@ def main() -> None:
         render_login_screen()
         return
 
-    # El identificador único de cada cuenta es el correo; el nombre solo se usa para mostrar.
-    user_email, modulo = render_sidebar()
-    render_header(user_email)
+    # El identificador único de cada operador es "nombre_apellido"; el nombre completo solo se usa para mostrar.
+    operador_id, modulo = render_sidebar()
+    render_header(operador_id)
 
     if modulo == "📚 Biblioteca de Ejercicios":
         render_library()
     else:
-        MODULE_HANDLERS[modulo](user_email)
+        MODULE_HANDLERS[modulo](operador_id)
 
     nombre_mostrar = st.session_state.user["name"]
     st.markdown("---")
