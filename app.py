@@ -254,6 +254,60 @@ DB_EXERCISE_INFO: dict[str, tuple[str, str]] = {
  
  
 # ============================================================
+# MANIQUÍ MUSCULAR (diagrama simplificado, no anatómico)
+# ============================================================
+ 
+MUSCLE_REGION_MAP: dict[str, list[str]] = {
+    "Pecho": ["chest"],
+    "Espalda": ["chest", "shoulders"],
+    "Piernas": ["thigh_l", "thigh_r"],
+    "Glúteos": ["hips"],
+    "Pantorrillas": ["calf_l", "calf_r"],
+    "Hombros": ["shoulders"],
+    "Brazos": ["arm_l", "arm_r"],
+    "Antebrazos": ["forearm_l", "forearm_r"],
+    "Core": ["abs"],
+    "Calistenia": ["chest", "arm_l", "arm_r", "abs", "shoulders"],
+}
+ 
+ 
+def render_body_diagram(grupo: str) -> None:
+    """Dibuja un maniquí simplificado resaltando la zona trabajada. No es un diagrama anatómico preciso,
+    solo una guía visual rápida."""
+    highlight = set(MUSCLE_REGION_MAP.get(grupo, []))
+ 
+    def fill(region_id: str) -> str:
+        return "var(--signal)" if region_id in highlight else "#2a332e"
+ 
+    def op(region_id: str) -> str:
+        return "1" if region_id in highlight else "0.5"
+ 
+    svg = f'''
+    <div style="display:flex; justify-content:center; padding:10px 0;">
+    <svg viewBox="0 0 200 380" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:190px;">
+      <circle cx="100" cy="34" r="23" fill="#2a332e" stroke="var(--line)" stroke-width="2" opacity="0.7"/>
+      <rect x="90" y="53" width="20" height="14" fill="#2a332e" opacity="0.7"/>
+      <circle cx="58" cy="76" r="15" fill="{fill('shoulders')}" opacity="{op('shoulders')}"/>
+      <circle cx="142" cy="76" r="15" fill="{fill('shoulders')}" opacity="{op('shoulders')}"/>
+      <rect x="63" y="68" width="74" height="55" rx="14" fill="{fill('chest')}" opacity="{op('chest')}"/>
+      <rect x="68" y="124" width="64" height="48" rx="10" fill="{fill('abs')}" opacity="{op('abs')}"/>
+      <rect x="63" y="173" width="74" height="30" rx="12" fill="{fill('hips')}" opacity="{op('hips')}"/>
+      <rect x="30" y="70" width="26" height="68" rx="12" fill="{fill('arm_l')}" opacity="{op('arm_l')}"/>
+      <rect x="144" y="70" width="26" height="68" rx="12" fill="{fill('arm_r')}" opacity="{op('arm_r')}"/>
+      <rect x="26" y="139" width="22" height="55" rx="10" fill="{fill('forearm_l')}" opacity="{op('forearm_l')}"/>
+      <rect x="152" y="139" width="22" height="55" rx="10" fill="{fill('forearm_r')}" opacity="{op('forearm_r')}"/>
+      <rect x="66" y="202" width="28" height="85" rx="12" fill="{fill('thigh_l')}" opacity="{op('thigh_l')}"/>
+      <rect x="106" y="202" width="28" height="85" rx="12" fill="{fill('thigh_r')}" opacity="{op('thigh_r')}"/>
+      <rect x="68" y="287" width="24" height="75" rx="10" fill="{fill('calf_l')}" opacity="{op('calf_l')}"/>
+      <rect x="108" y="287" width="24" height="75" rx="10" fill="{fill('calf_r')}" opacity="{op('calf_r')}"/>
+    </svg>
+    </div>
+    '''
+    st.markdown(svg, unsafe_allow_html=True)
+    st.caption(f"🟢 Zona destacada: **{grupo}** · diagrama orientativo, no anatómico exacto.")
+ 
+ 
+# ============================================================
 # ESTILOS (CSS)
 # ============================================================
  
@@ -386,6 +440,40 @@ def apply_custom_css() -> None:
     div[data-testid="stMetric"] { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
                                    padding: 14px 18px; box-shadow: 0 4px 14px rgba(0,0,0,0.2); }
     div[data-testid="stChatMessage"] { border-radius: 14px; border: 1px solid var(--line); }
+ 
+    /* VARIANTES DE COLOR */
+    .stat-chip.chip-cyan { border-color: rgba(0,229,255,0.35); }
+    .stat-chip.chip-cyan .num { color: var(--signal-2); }
+    .stat-chip.chip-amber { border-color: rgba(245,166,35,0.35); }
+    .stat-chip.chip-amber .num { color: var(--amber); }
+    .stat-chip.chip-violet { border-color: rgba(168,107,255,0.35); }
+    .stat-chip.chip-violet .num { color: var(--violet); }
+ 
+    .ia-card.ia-amber { border-left-color: var(--amber); }
+    .ia-card.ia-amber .ia-tag { color: var(--amber); }
+    .ia-card.ia-cyan { border-left-color: var(--signal-2); }
+    .ia-card.ia-cyan .ia-tag { color: var(--signal-2); }
+ 
+    /* LOGIN */
+    div[data-testid="stForm"], div[data-testid="stVerticalBlockBorderWrapper"] {
+        border-radius: 18px !important; border-color: var(--line) !important;
+    }
+ 
+    /* MÓVIL: la app está pensada para usarse principalmente desde el teléfono */
+    @media (max-width: 640px) {
+        .hero-card { flex-direction: column; align-items: flex-start; padding: 22px 20px; }
+        .hero-title { font-size: 1.5rem; }
+        .hero-sub { max-width: 100%; }
+        .hero-stats { width: 100%; }
+        .stat-chip { flex: 1; min-width: 0; padding: 8px 6px; }
+        .stat-chip .num { font-size: 1.05rem; }
+        .timer-display { font-size: 2.8rem; padding: 26px 16px; }
+        .rm-giant { font-size: 2.4rem; }
+        .module-container { padding: 16px; }
+        .section-title { font-size: 1rem; }
+        .readiness-wrap { flex-direction: column; align-items: flex-start; gap: 14px; }
+        .ia-card { padding: 18px; }
+    }
     </style>
     """, unsafe_allow_html=True)
  
@@ -469,11 +557,10 @@ def render_sidebar() -> tuple[str, str]:
         st.caption(f"v{APP_VERSION} · Apex Edition")
         st.divider()
  
-        if "user" not in st.session_state:
-            st.session_state["user"] = {"name": "ATLETA", "weight": 80, "height": 180, "age": 28}
- 
-        nombre = st.text_input("Operador:", st.session_state.user["name"])
-        st.session_state.user["name"] = (nombre.strip().upper() or "ATLETA")
+        st.markdown(f"👤 **Operador activo:**  \n{st.session_state.user['name']}")
+        if st.button("🔓 Cerrar sesión", use_container_width=True):
+            st.session_state["logged_in"] = False
+            st.rerun()
  
         st.divider()
  
@@ -493,7 +580,7 @@ def render_sidebar() -> tuple[str, str]:
         st.divider()
         modulo = st.radio("Sistema:", MODULES, label_visibility="collapsed")
         st.divider()
-        st.caption("🔒 Persistencia local SQLite activa.")
+        st.caption("🔒 Cada operador ve solo su propio historial.")
  
     return st.session_state.user["name"], modulo
  
@@ -573,6 +660,7 @@ def render_strength(user: str) -> None:
     with c1:
         st.markdown('<div class="section-title">📥 Registro de Set</div>', unsafe_allow_html=True)
         grupo = st.selectbox("Grupo muscular", grupos_fuerza)
+        render_body_diagram(grupo)
  
         with st.form("f_gym", clear_on_submit=True):
             ejer = st.selectbox("Ejercicio", DB_EXERCISES[grupo])
@@ -879,6 +967,7 @@ def render_ai_warmup(user: str) -> None:
     with col1:
         st.markdown("#### 🌡️ Generador de calentamiento")
         grupo_focus = st.selectbox("¿Qué vas a entrenar hoy?", list(DB_EXERCISES.keys()))
+        render_body_diagram(grupo_focus)
         duracion = st.slider("Minutos disponibles para calentar", 3, 20, 8)
         molestia = st.selectbox("¿Alguna molestia hoy?",
                                  ["Ninguna", "Hombro", "Rodilla", "Espalda baja", "Cadera", "Otra"])
@@ -900,7 +989,7 @@ def render_ai_warmup(user: str) -> None:
  
         if "ultimo_calentamiento" in st.session_state:
             st.markdown(
-                f'<div class="ia-card"><div class="ia-tag">🔥 Calentamiento sugerido</div>'
+                f'<div class="ia-card ia-amber"><div class="ia-tag">🔥 Calentamiento sugerido</div>'
                 f'{st.session_state["ultimo_calentamiento"]}</div>',
                 unsafe_allow_html=True,
             )
@@ -1215,8 +1304,8 @@ def render_header(user: str) -> None:
         </div>
         <div class="hero-stats">
             <div class="stat-chip"><span class="num">{total}</span><span class="lbl">Sesiones</span></div>
-            <div class="stat-chip"><span class="num">{readiness_val}</span><span class="lbl">Readiness</span></div>
-            <div class="stat-chip"><span class="num">🔥 {racha}</span><span class="lbl">Racha</span></div>
+            <div class="stat-chip chip-cyan"><span class="num">{readiness_val}</span><span class="lbl">Readiness</span></div>
+            <div class="stat-chip chip-amber"><span class="num">🔥 {racha}</span><span class="lbl">Racha</span></div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1241,8 +1330,52 @@ MODULE_HANDLERS = {
 }
  
  
+# ============================================================
+# LOGIN / SELECCIÓN DE OPERADOR
+# ============================================================
+ 
+def render_login_screen() -> None:
+    """Pantalla de entrada: cada persona inicia sesión con su nombre para no mezclar historiales."""
+    st.markdown("""
+    <div style="text-align:center; margin-top:10vh; margin-bottom:26px;">
+        <div style="font-size:3.4rem;">🧬</div>
+        <p style="font-family:'Space Grotesk',sans-serif; font-size:1.9rem; font-weight:800; margin:8px 0 6px 0;
+                   background:linear-gradient(90deg,#eef2f0 25%, var(--signal) 60%, var(--signal-2) 100%);
+                   -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">
+            MorphAI Performance OS
+        </p>
+        <p style="color:var(--text-mid); font-size:0.95rem;">
+            Cada operador tiene su propio historial. Inicia sesión con tu nombre para empezar.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+ 
+    _, mid, _ = st.columns([1, 3, 1])
+    with mid:
+        with st.container(border=True):
+            nombre = st.text_input("Tu nombre", placeholder="Ej: Josías",
+                                    label_visibility="collapsed", key="login_name_input")
+            if st.button("🚀 Iniciar sesión", use_container_width=True, type="primary"):
+                nombre_limpio = nombre.strip().upper()
+                if nombre_limpio:
+                    st.session_state["user"] = {"name": nombre_limpio, "weight": 80, "height": 180, "age": 28}
+                    st.session_state["logged_in"] = True
+                    st.rerun()
+                else:
+                    st.warning("Escribe tu nombre para continuar.")
+ 
+ 
+# ============================================================
+# PUNTO DE ENTRADA
+# ============================================================
+ 
 def main() -> None:
     apply_custom_css()
+ 
+    if not st.session_state.get("logged_in"):
+        render_login_screen()
+        return
+ 
     user, modulo = render_sidebar()
     render_header(user)
  
