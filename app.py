@@ -149,10 +149,13 @@ st.markdown("""
     --line: rgba(37, 99, 235, 0.16);
     --signal: #2563eb;
     --signal-soft: rgba(37, 99, 235, 0.10);
-    --amber: #2563eb;
-    --amber-soft: rgba(37, 99, 235, 0.08);
+    --success: #16a34a;
+    --success-soft: rgba(22, 163, 74, 0.10);
+    --amber: #f59e0b;
+    --amber-soft: rgba(245, 158, 11, 0.10);
     --red: #e11d48;
     --red-soft: rgba(225, 29, 72, 0.10);
+    --ink: #0b1220;
     --text-hi: #0b1c33;
     --text-mid: #4b6280;
     --text-low: #8296b3;
@@ -170,24 +173,29 @@ h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
 .hero-title { font-family: 'Space Grotesk', sans-serif; font-size: 1.9rem; font-weight: 700; color: var(--text-hi); margin: 0; }
 .hero-sub { color: var(--text-mid); font-size: 0.92rem; margin-top: 4px; }
 .hero-badge {
-    font-family: 'JetBrains Mono', monospace; background: var(--signal-soft); border: 1px solid var(--line);
-    color: var(--signal); padding: 10px 16px; border-radius: 10px; font-size: 0.8rem; text-align: right; line-height: 1.5;
+    font-family: 'JetBrains Mono', monospace; background: var(--success-soft); border: 1px solid var(--line);
+    color: var(--success); padding: 10px 16px; border-radius: 10px; font-size: 0.8rem; text-align: right; line-height: 1.5;
 }
+.live-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--success);
+    margin-right:6px; box-shadow: 0 0 0 rgba(22,163,74,0.5); animation: pulseDot 1.6s infinite; }
+@keyframes pulseDot { 0% { box-shadow: 0 0 0 0 rgba(22,163,74,0.5); } 70% { box-shadow: 0 0 0 7px rgba(22,163,74,0); } 100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); } }
 .module-container { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 26px; margin-bottom: 22px; box-shadow: 0 2px 10px rgba(37,99,235,0.05); }
 .timer-display {
     font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 5.5rem;
     text-align: center; padding: 40px; border-radius: 18px; border: 2px solid var(--amber);
     color: var(--amber); background: var(--amber-soft); letter-spacing: 4px;
 }
-.work-active { border-color: var(--signal) !important; color: var(--signal) !important; background: var(--signal-soft) !important; }
+.work-active { border-color: var(--success) !important; color: var(--success) !important; background: var(--success-soft) !important; }
 .ia-card { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--signal); border-radius: 14px; padding: 26px; white-space: pre-wrap; color: var(--text-hi); line-height: 1.6; }
 .ia-tag { color: var(--signal); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; letter-spacing: 1.5px; text-transform: uppercase; border-bottom: 1px solid var(--line); margin-bottom: 14px; padding-bottom: 10px; }
 .rm-giant { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 3.6rem; color: var(--signal); text-align: center; margin: 0; }
 .readiness-box { padding: 20px; border-radius: 12px; text-align: center; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 2rem; margin-bottom: 15px; }
-.readiness-high { background: var(--signal-soft); color: var(--signal); border: 1px solid var(--signal); }
+.readiness-high { background: var(--success-soft); color: var(--success); border: 1px solid var(--success); }
 .readiness-mid { background: var(--amber-soft); color: var(--amber); border: 1px solid var(--amber); }
 .readiness-low { background: var(--red-soft); color: var(--red); border: 1px solid var(--red); }
-section[data-testid="stSidebar"] { background: var(--bg-1); border-right: 1px solid var(--line); }
+section[data-testid="stSidebar"] { background: var(--bg-1); border-right: 1px solid var(--line); border-right-width: 2px; box-shadow: 2px 0 12px rgba(11,18,32,0.04); }
+.sidebar-title-pill { display:inline-block; background: var(--ink); color:#ffffff; padding: 8px 14px; border-radius: 10px;
+    font-family:'Space Grotesk',sans-serif; letter-spacing:2px; font-size:1.15rem; font-weight:700; }
 .auth-card { max-width: 420px; margin: 40px auto; background: var(--panel); border: 1px solid var(--line);
     border-radius: 18px; padding: 34px; box-shadow: 0 8px 30px rgba(37,99,235,0.10); }
 
@@ -245,9 +253,10 @@ DB_EXERCISE_INFO = {
     "Movilidad de Cadera": ("Flexores de cadera, rotadores", "Series de 90/90 y círculos controlados, sin rebotes."),
 }
 
-# --- MANIQUÍ ANIMADO (resalta en azul el grupo muscular activo) ---
+# --- MANIQUÍ ANIMADO (cuerpo humano con extremidades reales, resalta en azul el grupo activo) ---
 def render_mannequin(grupo, key="m"):
-    """SVG de un maniquí blanco que se mueve, con el grupo muscular activo resaltado en azul."""
+    """SVG de un maniquí anatómico (hombros, bíceps, antebrazos, manos, muslos, gemelos, pies)
+    que se mueve, con el grupo muscular activo resaltado en azul y un indicador verde de 'en marcha'."""
     grupo_map = {
         "Pecho": "chest", "Espalda": "back", "Hombros": "shoulders",
         "Brazos": "arms", "Piernas": "legs", "Core": "core",
@@ -256,10 +265,11 @@ def render_mannequin(grupo, key="m"):
     }
     activo = grupo_map.get(grupo, "full")
     AZUL = "#2563eb"
-    BLANCO = "#eaf1fb"
+    TONO_PIEL = "#dbe6f5"   # tono base "en reposo" (gris-azulado, no blanco puro)
+    TINTA = "#16305c"       # contorno oscuro para dar definición anatómica
 
     def c(part):
-        return AZUL if activo in (part, "full") else BLANCO
+        return AZUL if activo in (part, "full") else TONO_PIEL
 
     anim_arms = "swingArms 1.3s ease-in-out infinite" if activo in ("chest", "back", "shoulders", "arms", "full") else "none"
     anim_legs = "swingLegs 1.3s ease-in-out infinite" if activo in ("legs", "full") else "none"
@@ -269,43 +279,75 @@ def render_mannequin(grupo, key="m"):
     html = f"""
     <div style="display:flex;justify-content:center;padding:6px 0 0 0;">
     <style>
-    @keyframes swingArms {{ 0%,100% {{ transform: rotate(-6deg); }} 50% {{ transform: rotate(10deg); }} }}
-    @keyframes swingLegs {{ 0%,100% {{ transform: rotate(4deg); }} 50% {{ transform: rotate(-8deg); }} }}
-    @keyframes pulseCore {{ 0%,100% {{ transform: scale(1); opacity:1; }} 50% {{ transform: scale(1.07); opacity:0.85; }} }}
-    .{key}-larm {{ transform-box: fill-box; transform-origin: center; animation: {anim_arms}; }}
-    .{key}-rarm {{ transform-box: fill-box; transform-origin: center; animation: {anim_arms}; }}
-    .{key}-lleg {{ transform-box: fill-box; transform-origin: center; animation: {anim_legs}; }}
-    .{key}-rleg {{ transform-box: fill-box; transform-origin: center; animation: {anim_legs}; }}
-    .{key}-core {{ transform-box: fill-box; transform-origin: center; animation: {anim_core}; }}
+    @keyframes swingArms {{ 0%,100% {{ transform: rotate(-8deg); }} 50% {{ transform: rotate(12deg); }} }}
+    @keyframes swingLegs {{ 0%,100% {{ transform: rotate(6deg); }} 50% {{ transform: rotate(-10deg); }} }}
+    @keyframes pulseCore {{ 0%,100% {{ transform: scale(1); opacity:1; }} 50% {{ transform: scale(1.08); opacity:0.85; }} }}
+    @keyframes pulseGlow {{ 0%,100% {{ opacity:0.55; r:5; }} 50% {{ opacity:1; r:7; }} }}
+    .{key}-larm {{ transform-box: view-box; transform-origin: 66px 74px; animation: {anim_arms}; }}
+    .{key}-rarm {{ transform-box: view-box; transform-origin: 154px 74px; animation: {anim_arms}; }}
+    .{key}-lleg {{ transform-box: view-box; transform-origin: 92px 178px; animation: {anim_legs}; }}
+    .{key}-rleg {{ transform-box: view-box; transform-origin: 128px 178px; animation: {anim_legs}; }}
+    .{key}-core {{ transform-box: view-box; transform-origin: 110px 127px; animation: {anim_core}; }}
+    .{key}-dot {{ animation: pulseGlow 1.1s ease-in-out infinite; }}
     </style>
-    <svg viewBox="0 0 200 300" width="140" height="210">
-      <ellipse cx="70" cy="85" rx="9" ry="24" fill="{c('back')}" stroke="#c7d7ef" stroke-width="1"/>
-      <ellipse cx="130" cy="85" rx="9" ry="24" fill="{c('back')}" stroke="#c7d7ef" stroke-width="1"/>
-      <circle cx="100" cy="30" r="18" fill="{BLANCO}" stroke="#c7d7ef" stroke-width="1.5"/>
-      <rect x="75" y="50" width="50" height="45" rx="14" fill="{c('chest')}" stroke="#c7d7ef" stroke-width="1.5"/>
-      <rect x="78" y="93" width="44" height="45" rx="12" fill="{c('core')}" stroke="#c7d7ef" stroke-width="1.5" class="{key}-core"/>
+    <svg viewBox="0 0 220 340" width="150" height="232">
+      <!-- cabeza y cuello -->
+      <circle cx="110" cy="32" r="19" fill="{TONO_PIEL}" stroke="{TINTA}" stroke-width="2"/>
+      <rect x="101" y="48" width="18" height="14" rx="5" fill="{TONO_PIEL}" stroke="{TINTA}" stroke-width="1.5"/>
+      <!-- dorsales (visibles lateralmente desde el frente) -->
+      <ellipse cx="72" cy="90" rx="9" ry="26" fill="{c('back')}" stroke="{TINTA}" stroke-width="1.2"/>
+      <ellipse cx="148" cy="90" rx="9" ry="26" fill="{c('back')}" stroke="{TINTA}" stroke-width="1.2"/>
+      <!-- torso: pecho + abdomen -->
+      <rect x="78" y="60" width="64" height="48" rx="18" fill="{c('chest')}" stroke="{TINTA}" stroke-width="2"/>
+      <rect x="83" y="104" width="54" height="46" rx="14" fill="{c('core')}" stroke="{TINTA}" stroke-width="2" class="{key}-core"/>
+      <line x1="110" y1="104" x2="110" y2="148" stroke="{TINTA}" stroke-width="1" opacity="0.35"/>
+      <line x1="90" y1="118" x2="130" y2="118" stroke="{TINTA}" stroke-width="1" opacity="0.25"/>
+      <line x1="90" y1="134" x2="130" y2="134" stroke="{TINTA}" stroke-width="1" opacity="0.25"/>
+      <!-- cadera -->
+      <rect x="80" y="146" width="60" height="30" rx="14" fill="{c('legs')}" stroke="{TINTA}" stroke-width="2"/>
+      <!-- hombros -->
+      <circle cx="72" cy="70" r="16" fill="{c('shoulders')}" stroke="{TINTA}" stroke-width="2"/>
+      <circle cx="148" cy="70" r="16" fill="{c('shoulders')}" stroke="{TINTA}" stroke-width="2"/>
+      <!-- brazo izquierdo: bíceps, codo, antebrazo, muñeca, mano -->
       <g class="{key}-larm">
-        <line x1="68" y1="58" x2="55" y2="105" stroke="{c('arms')}" stroke-width="13" stroke-linecap="round"/>
-        <line x1="55" y1="105" x2="48" y2="150" stroke="{c('arms')}" stroke-width="11" stroke-linecap="round"/>
+        <ellipse cx="54" cy="105" rx="13" ry="23" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.8"/>
+        <circle cx="48" cy="132" r="9" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.5"/>
+        <ellipse cx="44" cy="162" rx="10" ry="21" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.8"/>
+        <circle cx="42" cy="188" r="7" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.3"/>
+        <ellipse cx="41" cy="203" rx="9" ry="12" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.5"/>
       </g>
+      <!-- brazo derecho -->
       <g class="{key}-rarm">
-        <line x1="132" y1="58" x2="145" y2="105" stroke="{c('arms')}" stroke-width="13" stroke-linecap="round"/>
-        <line x1="145" y1="105" x2="152" y2="150" stroke="{c('arms')}" stroke-width="11" stroke-linecap="round"/>
+        <ellipse cx="166" cy="105" rx="13" ry="23" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.8"/>
+        <circle cx="172" cy="132" r="9" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.5"/>
+        <ellipse cx="176" cy="162" rx="10" ry="21" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.8"/>
+        <circle cx="178" cy="188" r="7" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.3"/>
+        <ellipse cx="179" cy="203" rx="9" ry="12" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.5"/>
       </g>
-      <circle cx="68" cy="58" r="9" fill="{c('shoulders')}" stroke="#c7d7ef" stroke-width="1.5"/>
-      <circle cx="132" cy="58" r="9" fill="{c('shoulders')}" stroke="#c7d7ef" stroke-width="1.5"/>
+      <!-- pierna izquierda: muslo, rodilla, gemelo, tobillo, pie -->
       <g class="{key}-lleg">
-        <line x1="88" y1="140" x2="82" y2="205" stroke="{c('legs')}" stroke-width="15" stroke-linecap="round"/>
-        <line x1="82" y1="205" x2="78" y2="265" stroke="{c('legs')}" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="92" cy="176" r="11" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.5"/>
+        <ellipse cx="90" cy="215" rx="15" ry="28" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.8"/>
+        <circle cx="88" cy="246" r="10" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.5"/>
+        <ellipse cx="86" cy="280" rx="11" ry="22" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.8"/>
+        <circle cx="84" cy="306" r="7" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.3"/>
+        <ellipse cx="78" cy="316" rx="17" ry="7" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.5"/>
       </g>
+      <!-- pierna derecha -->
       <g class="{key}-rleg">
-        <line x1="112" y1="140" x2="118" y2="205" stroke="{c('legs')}" stroke-width="15" stroke-linecap="round"/>
-        <line x1="118" y1="205" x2="122" y2="265" stroke="{c('legs')}" stroke-width="12" stroke-linecap="round"/>
+        <circle cx="128" cy="176" r="11" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.5"/>
+        <ellipse cx="130" cy="215" rx="15" ry="28" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.8"/>
+        <circle cx="132" cy="246" r="10" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.5"/>
+        <ellipse cx="134" cy="280" rx="11" ry="22" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.8"/>
+        <circle cx="136" cy="306" r="7" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.3"/>
+        <ellipse cx="142" cy="316" rx="17" ry="7" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.5"/>
       </g>
+      <!-- indicador verde "en marcha" junto a la zona activa -->
+      <circle cx="196" cy="30" r="6" fill="#16a34a" class="{key}-dot"/>
     </svg>
     </div>
     <p style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:#2563eb;letter-spacing:1px;text-transform:uppercase;margin-top:2px;">
-    Zona activa: {grupo}
+    <span style="color:#16a34a;">●</span> Zona activa: {grupo}
     </p>
     {nota_back}
     """
@@ -372,7 +414,8 @@ if "user" not in st.session_state:
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.markdown('<h1 style="font-family:Space Grotesk; color:#2563eb; letter-spacing:2px; font-size:1.6rem;">MORPHAI OS</h1>', unsafe_allow_html=True)
+    st.markdown('<span class="sidebar-title-pill">🧬 MORPHAI OS</span>', unsafe_allow_html=True)
+    st.write("")
     st.caption(f"👤 Sesión de **{st.session_state.user['name'].title()}**")
     if st.button("🚪 Cerrar sesión"):
         del st.session_state["auth_user"]
@@ -412,7 +455,7 @@ st.markdown(f"""
 <p class="hero-title">Hola, {USER.title()} 👋</p>
 <p class="hero-sub">Sistema Neural Activo. Selecciona un módulo en el menú lateral para gestionar tu día atlético.</p>
 </div>
-<div class="hero-badge">SESIONES: {_total} | READINESS: {_readiness_val}<br>ÚLTIMA ACTIVIDAD: {_ultima}</div>
+<div class="hero-badge"><span class="live-dot"></span>SESIONES: {_total} | READINESS: {_readiness_val}<br>ÚLTIMA ACTIVIDAD: {_ultima}</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -452,7 +495,7 @@ if system_mode == "🧠 NEURAL READINESS & SUEÑO":
             st.info(f"💡 **Recomendación táctica:** {advice}")
             st.divider()
             fig_r = px.line(df_r.head(14).sort_values("id"), x="fecha", y="score", markers=True, template="plotly_white", title="Tendencia de Readiness (Últimos 14 registros)")
-            fig_r.update_traces(line_color="#2563eb")
+            fig_r.update_traces(line_color="#16a34a")
             st.plotly_chart(fig_r, use_container_width=True)
         else:
             st.info("Registra tu primer check-in matutino para calibrar tu algoritmo de entrenamiento.")
@@ -509,7 +552,7 @@ elif system_mode == "🏋️ ENTRENAMIENTO DE FUERZA":
         st.markdown(f'<p class="rm-giant">{round(res_rm, 1)} KG</p>', unsafe_allow_html=True)
         st.divider()
         st.write("**Zonas de intensidad sugeridas:**")
-        st.write(f"🔵 **95% (Máxima Fuerza):** {round(res_rm*0.95,1)} kg · 🔵 **85% (Fuerza):** {round(res_rm*0.85,1)} kg · 🔵 **70% (Hipertrofia):** {round(res_rm*0.7,1)} kg")
+        st.write(f"🔴 **95% (Máxima Fuerza):** {round(res_rm*0.95,1)} kg · 🟠 **85% (Fuerza):** {round(res_rm*0.85,1)} kg · 🟢 **70% (Hipertrofia):** {round(res_rm*0.7,1)} kg")
         st.divider()
         st.markdown("#### 🔥 Series de calentamiento sugeridas")
         st.write(f"1. Barra vacía / Ligero × 12 reps (Movilidad y activación)")
@@ -556,11 +599,11 @@ elif system_mode == "🏃 RUNNING TELEMETRY":
         st.write(f"**Pace de referencia (5K):** {int(pb_pace)}:{int((pb_pace%1)*60):02d} min/km")
         st.divider()
         zonas = {
-            "🔵 Z1 Recuperación": pb_pace * 1.4,
+            "🟢 Z1 Recuperación": pb_pace * 1.4,
             "🔵 Z2 Base aeróbica": pb_pace * 1.25,
-            "🔵 Z3 Tempo": pb_pace * 1.1,
-            "🔵 Z4 Umbral": pb_pace * 1.03,
-            "🔵 Z5 VO2 Max": pb_pace * 0.95,
+            "🟡 Z3 Tempo": pb_pace * 1.1,
+            "🟠 Z4 Umbral": pb_pace * 1.03,
+            "🔴 Z5 VO2 Max": pb_pace * 0.95,
         }
         for zona, p in zonas.items():
             st.write(f"**{zona}:** {int(p)}:{int((p%1)*60):02d} min/km")
@@ -861,10 +904,10 @@ elif system_mode == "📊 ANALÍTICA GLOBAL":
         st.plotly_chart(fig1, use_container_width=True)
         c_a1, c_a2 = st.columns(2)
         fig2 = px.pie(df, names='tipo', hole=0.6, title="Balance del Atleta por Módulo",
-                      color_discrete_sequence=['#2563eb', '#60a5fa', '#1d4ed8', '#93c5fd', '#0ea5e9'])
+                      color_discrete_sequence=['#2563eb', '#16a34a', '#f59e0b', '#e11d48', '#7c3aed', '#0ea5e9'])
         c_a1.plotly_chart(fig2)
         fig3 = px.bar(df, x="actividad", y="valor", color="tipo", title="Volumen Acumulado por Ejercicio / Actividad",
-                      color_discrete_sequence=['#2563eb', '#60a5fa', '#1d4ed8', '#93c5fd', '#0ea5e9'])
+                      color_discrete_sequence=['#2563eb', '#16a34a', '#f59e0b', '#e11d48', '#7c3aed', '#0ea5e9'])
         c_a2.plotly_chart(fig3)
         st.divider()
         st.markdown("### 🏆 Récords Personales (PRs Máximos)")
