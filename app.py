@@ -143,22 +143,22 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
 :root {
-    --bg-0: #0b0e14;
-    --bg-1: #10141d;
-    --panel: #151a24;
-    --line: rgba(255, 122, 69, 0.20);
-    --signal: #ff7a45;
-    --signal-soft: rgba(255, 122, 69, 0.14);
-    --success: #2ecc71;
-    --success-soft: rgba(46, 204, 113, 0.14);
-    --amber: #ffb020;
-    --amber-soft: rgba(255, 176, 32, 0.14);
-    --red: #ff5470;
-    --red-soft: rgba(255, 84, 112, 0.14);
-    --ink: #0b0e14;
-    --text-hi: #f5f7fb;
-    --text-mid: #aab4c8;
-    --text-low: #6d7890;
+    --bg-0: #0a0f1a;
+    --bg-1: #10182a;
+    --panel: #131c2f;
+    --line: rgba(45, 212, 191, 0.18);
+    --signal: #2dd4bf;
+    --signal-soft: rgba(45, 212, 191, 0.14);
+    --success: #34d399;
+    --success-soft: rgba(52, 211, 153, 0.14);
+    --amber: #fbbf24;
+    --amber-soft: rgba(251, 191, 36, 0.14);
+    --red: #fb7185;
+    --red-soft: rgba(251, 113, 133, 0.14);
+    --ink: #0a0f1a;
+    --text-hi: #f1f5f9;
+    --text-mid: #94a3b8;
+    --text-low: #64748b;
 }
 .stApp { background: var(--bg-0); color: var(--text-hi); font-family: 'Inter', sans-serif; }
 h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
@@ -167,7 +167,7 @@ h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
     border: 1px solid var(--line); border-radius: 16px; padding: 28px 32px;
     margin-bottom: 28px; display: flex; justify-content: space-between;
     align-items: center; flex-wrap: wrap; gap: 16px;
-    box-shadow: 0 4px 18px rgba(255, 122, 69, 0.10);
+    box-shadow: 0 4px 18px rgba(45, 212, 191, 0.10);
 }
 .hero-eyebrow { font-family: 'JetBrains Mono', monospace; color: var(--signal); font-size: 0.75rem; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
 .hero-title { font-family: 'Space Grotesk', sans-serif; font-size: 1.9rem; font-weight: 700; color: var(--text-hi); margin: 0; }
@@ -179,7 +179,7 @@ h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
 .live-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--success);
     margin-right:6px; box-shadow: 0 0 0 rgba(22,163,74,0.5); animation: pulseDot 1.6s infinite; }
 @keyframes pulseDot { 0% { box-shadow: 0 0 0 0 rgba(22,163,74,0.5); } 70% { box-shadow: 0 0 0 7px rgba(22,163,74,0); } 100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); } }
-.module-container { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 26px; margin-bottom: 22px; box-shadow: 0 2px 10px rgba(255,122,69,0.08); }
+.module-container { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 26px; margin-bottom: 22px; box-shadow: 0 2px 10px rgba(45,212,191,0.08); }
 .timer-display {
     font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 5.5rem;
     text-align: center; padding: 40px; border-radius: 18px; border: 2px solid var(--amber);
@@ -194,13 +194,14 @@ h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
 .readiness-mid { background: var(--amber-soft); color: var(--amber); border: 1px solid var(--amber); }
 .readiness-low { background: var(--red-soft); color: var(--red); border: 1px solid var(--red); }
 section[data-testid="stSidebar"] { background: var(--bg-1); border-right: 1px solid var(--line); border-right-width: 2px; box-shadow: 2px 0 12px rgba(11,18,32,0.04); }
-.sidebar-title-pill { display:inline-block; background: var(--signal); color: var(--ink); padding: 8px 14px; border-radius: 10px;
+.sidebar-title-pill { display:inline-block; background: var(--panel); color: var(--text-hi); padding: 8px 16px; border-radius: 10px;
+    border: 1px solid var(--line); border-left: 4px solid var(--signal);
     font-family:'Space Grotesk',sans-serif; letter-spacing:2px; font-size:1.15rem; font-weight:700; }
 .auth-card { max-width: 420px; margin: 40px auto; background: var(--panel); border: 1px solid var(--line);
-    border-radius: 18px; padding: 34px; box-shadow: 0 8px 30px rgba(255,122,69,0.14); }
+    border-radius: 18px; padding: 34px; box-shadow: 0 8px 30px rgba(45,212,191,0.14); }
 
 /* --- LEGIBILIDAD: forzar texto claro y de alto contraste sobre el fondo oscuro en TODA la app --- */
-:root { --text-color: #f5f7fb; --background-color: #0b0e14; --secondary-background-color: #151a24; }
+:root { --text-color: #f1f5f9; --background-color: #0a0f1a; --secondary-background-color: #131c2f; }
 .stApp, .stApp p, .stApp span, .stApp label, .stApp li, .stApp div,
 .stMarkdown, .stCaption, .stText, .stAlert, .stTabs, .stRadio, .stSelectbox,
 h1, h2, h3, h4, h5, h6 { color: var(--text-hi); }
@@ -268,8 +269,8 @@ def _mezclar(hexcolor, factor, hacia_blanco=True):
     return f"#{r:02x}{g:02x}{b:02x}"
 
 def render_mannequin(grupo, key="m"):
-    """SVG de un maniquí anatómico continuo (hombros, brazos, piernas, manos y pies fundidos entre sí
-    con degradados de volumen, sin contornos por pieza), con el grupo activo resaltado en azul."""
+    """SVG de un maniquí con las extremidades realmente fundidas en una silueta continua
+    (filtro 'goo'), más un halo de energía detrás del grupo muscular activo."""
     grupo_map = {
         "Pecho": "chest", "Espalda": "back", "Hombros": "shoulders",
         "Brazos": "arms", "Piernas": "legs", "Core": "core",
@@ -277,9 +278,9 @@ def render_mannequin(grupo, key="m"):
         "Calistenia": "full",
     }
     activo = grupo_map.get(grupo, "full")
-    AZUL = "#ff7a45"
-    ACERO = "#3d4a63"   # tono base "en reposo" (acero azulado, visible sobre panel oscuro)
-    TINTA = "#f5f7fb"
+    ACTIVO = "#2dd4bf"
+    ACERO = "#374357"   # tono base "en reposo", visible sobre el panel oscuro
+    TINTA = "#f1f5f9"
 
     def activo_aqui(part):
         return activo in (part, "full")
@@ -287,13 +288,21 @@ def render_mannequin(grupo, key="m"):
     def c(part):
         return f"url(#{key}-gA)" if activo_aqui(part) else f"url(#{key}-gP)"
 
-    az_luz, az_som = _mezclar(AZUL, 0.35), _mezclar(AZUL, 0.35, hacia_blanco=False)
-    ac_luz, ac_som = _mezclar(ACERO, 0.55), _mezclar(ACERO, 0.20, hacia_blanco=False)
+    ac_luz, ac_som = _mezclar(ACTIVO, 0.35), _mezclar(ACTIVO, 0.35, hacia_blanco=False)
+    ac2_luz, ac2_som = _mezclar(ACERO, 0.45), _mezclar(ACERO, 0.25, hacia_blanco=False)
 
     anim_arms = "swingArms 1.3s ease-in-out infinite" if activo in ("chest", "back", "shoulders", "arms", "full") else "none"
     anim_legs = "swingLegs 1.3s ease-in-out infinite" if activo in ("legs", "full") else "none"
     anim_core = "pulseCore 1.1s ease-in-out infinite" if activo == "core" else "none"
-    nota_back = "<p style='text-align:center;color:#aab4c8;font-size:0.7rem;'>Vista frontal simplificada (dorsales laterales)</p>" if grupo == "Espalda" else ""
+    nota_back = "<p style='text-align:center;color:#94a3b8;font-size:0.7rem;'>Vista frontal simplificada (dorsales laterales)</p>" if grupo == "Espalda" else ""
+
+    halo_geo = {
+        "chest": (110, 96, 52, 50), "back": (110, 96, 52, 50),
+        "shoulders": (110, 74, 62, 42), "arms": (110, 140, 95, 78),
+        "legs": (110, 235, 55, 105), "core": (110, 128, 42, 42),
+        "full": (110, 175, 100, 160),
+    }
+    hx, hy, hrx, hry = halo_geo.get(activo, halo_geo["full"])
 
     html = f"""
     <div style="display:flex;justify-content:center;padding:6px 0 0 0;">
@@ -301,72 +310,115 @@ def render_mannequin(grupo, key="m"):
     @keyframes swingArms {{ 0%,100% {{ transform: rotate(-8deg); }} 50% {{ transform: rotate(12deg); }} }}
     @keyframes swingLegs {{ 0%,100% {{ transform: rotate(6deg); }} 50% {{ transform: rotate(-10deg); }} }}
     @keyframes pulseCore {{ 0%,100% {{ transform: scale(1); opacity:1; }} 50% {{ transform: scale(1.08); opacity:0.85; }} }}
-    @keyframes pulseGlow {{ 0%,100% {{ opacity:0.55; }} 50% {{ opacity:1; }} }}
+    @keyframes pulseGlow {{ 0%,100% {{ opacity:0.5; }} 50% {{ opacity:1; }} }}
+    @keyframes pulseHalo {{ 0%,100% {{ opacity:0.30; }} 50% {{ opacity:0.55; }} }}
     .{key}-larm {{ transform-box: view-box; transform-origin: 66px 74px; animation: {anim_arms}; }}
     .{key}-rarm {{ transform-box: view-box; transform-origin: 154px 74px; animation: {anim_arms}; }}
     .{key}-lleg {{ transform-box: view-box; transform-origin: 92px 178px; animation: {anim_legs}; }}
     .{key}-rleg {{ transform-box: view-box; transform-origin: 128px 178px; animation: {anim_legs}; }}
     .{key}-core {{ transform-box: view-box; transform-origin: 110px 127px; animation: {anim_core}; }}
     .{key}-dot {{ animation: pulseGlow 1.1s ease-in-out infinite; }}
+    .{key}-halo {{ animation: pulseHalo 2.4s ease-in-out infinite; }}
     </style>
     <svg viewBox="0 0 220 340" width="150" height="232">
       <defs>
         <linearGradient id="{key}-gA" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="{az_luz}"/><stop offset="100%" stop-color="{az_som}"/>
-        </linearGradient>
-        <linearGradient id="{key}-gP" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="{ac_luz}"/><stop offset="100%" stop-color="{ac_som}"/>
         </linearGradient>
+        <linearGradient id="{key}-gP" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="{ac2_luz}"/><stop offset="100%" stop-color="{ac2_som}"/>
+        </linearGradient>
+        <radialGradient id="{key}-halo-grad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="{ACTIVO}" stop-opacity="0.55"/>
+          <stop offset="100%" stop-color="{ACTIVO}" stop-opacity="0"/>
+        </radialGradient>
+        <filter id="{key}-goo" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+          <feColorMatrix in="blur" mode="matrix"
+            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10" result="goo"/>
+          <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
+        </filter>
+        <filter id="{key}-blur" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="14"/>
+        </filter>
         <filter id="{key}-sombra" x="-30%" y="-10%" width="160%" height="130%">
-          <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000000" flood-opacity="0.35"/>
+          <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000000" flood-opacity="0.4"/>
         </filter>
       </defs>
+
+      <!-- líneas de escaneo (ambiente "neural") -->
+      <g opacity="0.10" stroke="{TINTA}" stroke-width="1">
+        <line x1="20" y1="60" x2="200" y2="60"/>
+        <line x1="20" y1="150" x2="200" y2="150"/>
+        <line x1="20" y1="240" x2="200" y2="240"/>
+      </g>
+
+      <!-- halo de energía detrás del grupo activo -->
+      <ellipse class="{key}-halo" cx="{hx}" cy="{hy}" rx="{hrx}" ry="{hry}"
+               fill="url(#{key}-halo-grad)" filter="url(#{key}-blur)"/>
+
       <g filter="url(#{key}-sombra)">
-        <!-- dorsales (asoman por detrás del torso) -->
-        <ellipse cx="73" cy="92" rx="10" ry="28" fill="{c('back')}"/>
-        <ellipse cx="147" cy="92" rx="10" ry="28" fill="{c('back')}"/>
-        <!-- piernas: muslo + gemelo + pie fundidos con solape generoso, sin juntas visibles -->
+        <!-- dorsales (asoman levemente por detrás del torso, fundidas entre sí) -->
+        <g filter="url(#{key}-goo)" opacity="0.9">
+          <ellipse cx="73" cy="92" rx="11" ry="30" fill="{c('back')}"/>
+          <ellipse cx="147" cy="92" rx="11" ry="30" fill="{c('back')}"/>
+        </g>
+
+        <!-- piernas: muslo + gemelo + pie fundidos en una silueta continua -->
         <g class="{key}-lleg">
-          <ellipse cx="91" cy="205" rx="16" ry="34" fill="{c('legs')}"/>
-          <ellipse cx="87" cy="255" rx="12" ry="32" fill="{c('legs')}"/>
-          <ellipse cx="80" cy="290" rx="18" ry="10" fill="{c('legs')}"/>
+          <g filter="url(#{key}-goo)">
+            <ellipse cx="91" cy="203" rx="17" ry="36" fill="{c('legs')}"/>
+            <ellipse cx="86" cy="254" rx="13" ry="34" fill="{c('legs')}"/>
+            <ellipse cx="79" cy="292" rx="17" ry="11" fill="{c('legs')}"/>
+          </g>
         </g>
         <g class="{key}-rleg">
-          <ellipse cx="129" cy="205" rx="16" ry="34" fill="{c('legs')}"/>
-          <ellipse cx="133" cy="255" rx="12" ry="32" fill="{c('legs')}"/>
-          <ellipse cx="140" cy="290" rx="18" ry="10" fill="{c('legs')}"/>
+          <g filter="url(#{key}-goo)">
+            <ellipse cx="129" cy="203" rx="17" ry="36" fill="{c('legs')}"/>
+            <ellipse cx="134" cy="254" rx="13" ry="34" fill="{c('legs')}"/>
+            <ellipse cx="141" cy="292" rx="17" ry="11" fill="{c('legs')}"/>
+          </g>
         </g>
-        <!-- cadera -->
-        <rect x="79" y="150" width="62" height="36" rx="20" fill="{c('legs')}"/>
-        <!-- brazos: hombro + bíceps + antebrazo + mano fundidos -->
+        <!-- cadera: conecta ambas piernas -->
+        <rect x="78" y="148" width="64" height="40" rx="22" fill="{c('legs')}"/>
+
+        <!-- brazos: hombro + bíceps + antebrazo + mano fundidos en una silueta continua -->
         <g class="{key}-larm">
-          <ellipse cx="60" cy="92" rx="16" ry="30" fill="{c('arms')}"/>
-          <ellipse cx="46" cy="150" rx="12" ry="30" fill="{c('arms')}"/>
-          <ellipse cx="40" cy="198" rx="10" ry="14" fill="{c('arms')}"/>
+          <g filter="url(#{key}-goo)">
+            <ellipse cx="61" cy="90" rx="17" ry="32" fill="{c('arms')}"/>
+            <ellipse cx="46" cy="149" rx="13" ry="31" fill="{c('arms')}"/>
+            <ellipse cx="39" cy="199" rx="11" ry="15" fill="{c('arms')}"/>
+          </g>
         </g>
         <g class="{key}-rarm">
-          <ellipse cx="160" cy="92" rx="16" ry="30" fill="{c('arms')}"/>
-          <ellipse cx="174" cy="150" rx="12" ry="30" fill="{c('arms')}"/>
-          <ellipse cx="180" cy="198" rx="10" ry="14" fill="{c('arms')}"/>
+          <g filter="url(#{key}-goo)">
+            <ellipse cx="159" cy="90" rx="17" ry="32" fill="{c('arms')}"/>
+            <ellipse cx="174" cy="149" rx="13" ry="31" fill="{c('arms')}"/>
+            <ellipse cx="181" cy="199" rx="11" ry="15" fill="{c('arms')}"/>
+          </g>
         </g>
-        <!-- hombros (redondean el nacimiento del brazo en el torso) -->
-        <circle cx="72" cy="70" r="18" fill="{c('shoulders')}"/>
-        <circle cx="148" cy="70" r="18" fill="{c('shoulders')}"/>
-        <!-- torso: pecho + abdomen, una sola silueta continua -->
-        <path d="M 78,64 Q 78,58 90,58 L 130,58 Q 142,58 142,64
-                 L 140,110 Q 138,150 126,158 L 94,158 Q 82,150 80,110 Z"
-              fill="{c('chest')}"/>
-        <ellipse cx="110" cy="128" rx="26" ry="26" fill="{c('core')}" opacity="0.55" class="{key}-core"/>
-        <!-- cuello y cabeza -->
-        <rect x="101" y="46" width="18" height="18" rx="7" fill="{c('shoulders')}"/>
-        <circle cx="110" cy="32" r="20" fill="url(#{key}-gP)" stroke="{TINTA}" stroke-width="1" stroke-opacity="0.25"/>
+
+        <!-- tronco: hombros + pecho/abdomen fundidos en una sola silueta continua -->
+        <g filter="url(#{key}-goo)">
+          <circle cx="72" cy="68" r="19" fill="{c('shoulders')}"/>
+          <circle cx="148" cy="68" r="19" fill="{c('shoulders')}"/>
+          <path d="M 77,62 Q 77,55 90,55 L 130,55 Q 143,55 143,62
+                   L 141,112 Q 139,152 126,160 L 94,160 Q 81,152 79,112 Z"
+                fill="{c('chest')}"/>
+        </g>
+        <ellipse cx="110" cy="128" rx="27" ry="27" fill="{c('core')}" opacity="0.6" class="{key}-core"/>
+
+        <!-- cuello y cabeza (silueta limpia, sin fundir, para un perfil facial nítido) -->
+        <rect x="101" y="44" width="18" height="18" rx="7" fill="{c('shoulders')}"/>
+        <circle cx="110" cy="30" r="20" fill="url(#{key}-gP)" stroke="{TINTA}" stroke-width="1.2" stroke-opacity="0.3"/>
       </g>
-      <!-- indicador verde "en marcha" -->
-      <circle cx="198" cy="26" r="6" fill="#2ecc71" class="{key}-dot"/>
+
+      <!-- indicador "en marcha" -->
+      <circle cx="198" cy="24" r="6" fill="{ACTIVO}" class="{key}-dot"/>
     </svg>
     </div>
-    <p style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:#ff7a45;letter-spacing:1px;text-transform:uppercase;margin-top:2px;">
-    <span style="color:#2ecc71;">●</span> Zona activa: {grupo}
+    <p style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:{ACTIVO};letter-spacing:1px;text-transform:uppercase;margin-top:2px;">
+    <span style="color:{ACTIVO};">●</span> Zona activa: {grupo}
     </p>
     {nota_back}
     """
