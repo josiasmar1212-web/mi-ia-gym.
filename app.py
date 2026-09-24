@@ -253,10 +253,20 @@ DB_EXERCISE_INFO = {
     "Movilidad de Cadera": ("Flexores de cadera, rotadores", "Series de 90/90 y círculos controlados, sin rebotes."),
 }
 
-# --- MANIQUÍ ANIMADO (cuerpo humano con extremidades reales, resalta en azul el grupo activo) ---
+# --- MANIQUÍ ANIMADO (cuerpo humano continuo, sin "piezas de robot") ---
+def _mezclar(hexcolor, factor, hacia_blanco=True):
+    """Aclara (hacia_blanco=True) u oscurece un color hex un factor 0-1, para simular volumen 3D."""
+    h = hexcolor.lstrip('#')
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    if hacia_blanco:
+        r, g, b = [min(255, int(v + (255 - v) * factor)) for v in (r, g, b)]
+    else:
+        r, g, b = [max(0, int(v * (1 - factor))) for v in (r, g, b)]
+    return f"#{r:02x}{g:02x}{b:02x}"
+
 def render_mannequin(grupo, key="m"):
-    """SVG de un maniquí anatómico (hombros, bíceps, antebrazos, manos, muslos, gemelos, pies)
-    que se mueve, con el grupo muscular activo resaltado en azul y un indicador verde de 'en marcha'."""
+    """SVG de un maniquí anatómico continuo (hombros, brazos, piernas, manos y pies fundidos entre sí
+    con degradados de volumen, sin contornos por pieza), con el grupo activo resaltado en azul."""
     grupo_map = {
         "Pecho": "chest", "Espalda": "back", "Hombros": "shoulders",
         "Brazos": "arms", "Piernas": "legs", "Core": "core",
@@ -265,11 +275,17 @@ def render_mannequin(grupo, key="m"):
     }
     activo = grupo_map.get(grupo, "full")
     AZUL = "#2563eb"
-    TONO_PIEL = "#dbe6f5"   # tono base "en reposo" (gris-azulado, no blanco puro)
-    TINTA = "#16305c"       # contorno oscuro para dar definición anatómica
+    ACERO = "#c9d8ee"   # tono base "en reposo" (gris-azulado suave, no blanco puro)
+    TINTA = "#16305c"
+
+    def activo_aqui(part):
+        return activo in (part, "full")
 
     def c(part):
-        return AZUL if activo in (part, "full") else TONO_PIEL
+        return f"url(#{key}-gA)" if activo_aqui(part) else f"url(#{key}-gP)"
+
+    az_luz, az_som = _mezclar(AZUL, 0.35), _mezclar(AZUL, 0.35, hacia_blanco=False)
+    ac_luz, ac_som = _mezclar(ACERO, 0.55), _mezclar(ACERO, 0.20, hacia_blanco=False)
 
     anim_arms = "swingArms 1.3s ease-in-out infinite" if activo in ("chest", "back", "shoulders", "arms", "full") else "none"
     anim_legs = "swingLegs 1.3s ease-in-out infinite" if activo in ("legs", "full") else "none"
@@ -282,7 +298,7 @@ def render_mannequin(grupo, key="m"):
     @keyframes swingArms {{ 0%,100% {{ transform: rotate(-8deg); }} 50% {{ transform: rotate(12deg); }} }}
     @keyframes swingLegs {{ 0%,100% {{ transform: rotate(6deg); }} 50% {{ transform: rotate(-10deg); }} }}
     @keyframes pulseCore {{ 0%,100% {{ transform: scale(1); opacity:1; }} 50% {{ transform: scale(1.08); opacity:0.85; }} }}
-    @keyframes pulseGlow {{ 0%,100% {{ opacity:0.55; r:5; }} 50% {{ opacity:1; r:7; }} }}
+    @keyframes pulseGlow {{ 0%,100% {{ opacity:0.55; }} 50% {{ opacity:1; }} }}
     .{key}-larm {{ transform-box: view-box; transform-origin: 66px 74px; animation: {anim_arms}; }}
     .{key}-rarm {{ transform-box: view-box; transform-origin: 154px 74px; animation: {anim_arms}; }}
     .{key}-lleg {{ transform-box: view-box; transform-origin: 92px 178px; animation: {anim_legs}; }}
@@ -291,59 +307,59 @@ def render_mannequin(grupo, key="m"):
     .{key}-dot {{ animation: pulseGlow 1.1s ease-in-out infinite; }}
     </style>
     <svg viewBox="0 0 220 340" width="150" height="232">
-      <!-- cabeza y cuello -->
-      <circle cx="110" cy="32" r="19" fill="{TONO_PIEL}" stroke="{TINTA}" stroke-width="2"/>
-      <rect x="101" y="48" width="18" height="14" rx="5" fill="{TONO_PIEL}" stroke="{TINTA}" stroke-width="1.5"/>
-      <!-- dorsales (visibles lateralmente desde el frente) -->
-      <ellipse cx="72" cy="90" rx="9" ry="26" fill="{c('back')}" stroke="{TINTA}" stroke-width="1.2"/>
-      <ellipse cx="148" cy="90" rx="9" ry="26" fill="{c('back')}" stroke="{TINTA}" stroke-width="1.2"/>
-      <!-- torso: pecho + abdomen -->
-      <rect x="78" y="60" width="64" height="48" rx="18" fill="{c('chest')}" stroke="{TINTA}" stroke-width="2"/>
-      <rect x="83" y="104" width="54" height="46" rx="14" fill="{c('core')}" stroke="{TINTA}" stroke-width="2" class="{key}-core"/>
-      <line x1="110" y1="104" x2="110" y2="148" stroke="{TINTA}" stroke-width="1" opacity="0.35"/>
-      <line x1="90" y1="118" x2="130" y2="118" stroke="{TINTA}" stroke-width="1" opacity="0.25"/>
-      <line x1="90" y1="134" x2="130" y2="134" stroke="{TINTA}" stroke-width="1" opacity="0.25"/>
-      <!-- cadera -->
-      <rect x="80" y="146" width="60" height="30" rx="14" fill="{c('legs')}" stroke="{TINTA}" stroke-width="2"/>
-      <!-- hombros -->
-      <circle cx="72" cy="70" r="16" fill="{c('shoulders')}" stroke="{TINTA}" stroke-width="2"/>
-      <circle cx="148" cy="70" r="16" fill="{c('shoulders')}" stroke="{TINTA}" stroke-width="2"/>
-      <!-- brazo izquierdo: bíceps, codo, antebrazo, muñeca, mano -->
-      <g class="{key}-larm">
-        <ellipse cx="54" cy="105" rx="13" ry="23" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.8"/>
-        <circle cx="48" cy="132" r="9" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.5"/>
-        <ellipse cx="44" cy="162" rx="10" ry="21" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.8"/>
-        <circle cx="42" cy="188" r="7" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.3"/>
-        <ellipse cx="41" cy="203" rx="9" ry="12" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.5"/>
+      <defs>
+        <linearGradient id="{key}-gA" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="{az_luz}"/><stop offset="100%" stop-color="{az_som}"/>
+        </linearGradient>
+        <linearGradient id="{key}-gP" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="{ac_luz}"/><stop offset="100%" stop-color="{ac_som}"/>
+        </linearGradient>
+        <filter id="{key}-sombra" x="-30%" y="-10%" width="160%" height="130%">
+          <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#0b1c33" flood-opacity="0.18"/>
+        </filter>
+      </defs>
+      <g filter="url(#{key}-sombra)">
+        <!-- dorsales (asoman por detrás del torso) -->
+        <ellipse cx="73" cy="92" rx="10" ry="28" fill="{c('back')}"/>
+        <ellipse cx="147" cy="92" rx="10" ry="28" fill="{c('back')}"/>
+        <!-- piernas: muslo + gemelo + pie fundidos con solape generoso, sin juntas visibles -->
+        <g class="{key}-lleg">
+          <ellipse cx="91" cy="205" rx="16" ry="34" fill="{c('legs')}"/>
+          <ellipse cx="87" cy="255" rx="12" ry="32" fill="{c('legs')}"/>
+          <ellipse cx="80" cy="290" rx="18" ry="10" fill="{c('legs')}"/>
+        </g>
+        <g class="{key}-rleg">
+          <ellipse cx="129" cy="205" rx="16" ry="34" fill="{c('legs')}"/>
+          <ellipse cx="133" cy="255" rx="12" ry="32" fill="{c('legs')}"/>
+          <ellipse cx="140" cy="290" rx="18" ry="10" fill="{c('legs')}"/>
+        </g>
+        <!-- cadera -->
+        <rect x="79" y="150" width="62" height="36" rx="20" fill="{c('legs')}"/>
+        <!-- brazos: hombro + bíceps + antebrazo + mano fundidos -->
+        <g class="{key}-larm">
+          <ellipse cx="60" cy="92" rx="16" ry="30" fill="{c('arms')}"/>
+          <ellipse cx="46" cy="150" rx="12" ry="30" fill="{c('arms')}"/>
+          <ellipse cx="40" cy="198" rx="10" ry="14" fill="{c('arms')}"/>
+        </g>
+        <g class="{key}-rarm">
+          <ellipse cx="160" cy="92" rx="16" ry="30" fill="{c('arms')}"/>
+          <ellipse cx="174" cy="150" rx="12" ry="30" fill="{c('arms')}"/>
+          <ellipse cx="180" cy="198" rx="10" ry="14" fill="{c('arms')}"/>
+        </g>
+        <!-- hombros (redondean el nacimiento del brazo en el torso) -->
+        <circle cx="72" cy="70" r="18" fill="{c('shoulders')}"/>
+        <circle cx="148" cy="70" r="18" fill="{c('shoulders')}"/>
+        <!-- torso: pecho + abdomen, una sola silueta continua -->
+        <path d="M 78,64 Q 78,58 90,58 L 130,58 Q 142,58 142,64
+                 L 140,110 Q 138,150 126,158 L 94,158 Q 82,150 80,110 Z"
+              fill="{c('chest')}"/>
+        <ellipse cx="110" cy="128" rx="26" ry="26" fill="{c('core')}" opacity="0.55" class="{key}-core"/>
+        <!-- cuello y cabeza -->
+        <rect x="101" y="46" width="18" height="18" rx="7" fill="{c('shoulders')}"/>
+        <circle cx="110" cy="32" r="20" fill="url(#{key}-gP)" stroke="{TINTA}" stroke-width="1" stroke-opacity="0.25"/>
       </g>
-      <!-- brazo derecho -->
-      <g class="{key}-rarm">
-        <ellipse cx="166" cy="105" rx="13" ry="23" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.8"/>
-        <circle cx="172" cy="132" r="9" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.5"/>
-        <ellipse cx="176" cy="162" rx="10" ry="21" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.8"/>
-        <circle cx="178" cy="188" r="7" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.3"/>
-        <ellipse cx="179" cy="203" rx="9" ry="12" fill="{c('arms')}" stroke="{TINTA}" stroke-width="1.5"/>
-      </g>
-      <!-- pierna izquierda: muslo, rodilla, gemelo, tobillo, pie -->
-      <g class="{key}-lleg">
-        <circle cx="92" cy="176" r="11" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.5"/>
-        <ellipse cx="90" cy="215" rx="15" ry="28" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.8"/>
-        <circle cx="88" cy="246" r="10" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.5"/>
-        <ellipse cx="86" cy="280" rx="11" ry="22" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.8"/>
-        <circle cx="84" cy="306" r="7" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.3"/>
-        <ellipse cx="78" cy="316" rx="17" ry="7" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.5"/>
-      </g>
-      <!-- pierna derecha -->
-      <g class="{key}-rleg">
-        <circle cx="128" cy="176" r="11" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.5"/>
-        <ellipse cx="130" cy="215" rx="15" ry="28" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.8"/>
-        <circle cx="132" cy="246" r="10" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.5"/>
-        <ellipse cx="134" cy="280" rx="11" ry="22" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.8"/>
-        <circle cx="136" cy="306" r="7" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.3"/>
-        <ellipse cx="142" cy="316" rx="17" ry="7" fill="{c('legs')}" stroke="{TINTA}" stroke-width="1.5"/>
-      </g>
-      <!-- indicador verde "en marcha" junto a la zona activa -->
-      <circle cx="196" cy="30" r="6" fill="#16a34a" class="{key}-dot"/>
+      <!-- indicador verde "en marcha" -->
+      <circle cx="198" cy="26" r="6" fill="#16a34a" class="{key}-dot"/>
     </svg>
     </div>
     <p style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:#2563eb;letter-spacing:1px;text-transform:uppercase;margin-top:2px;">
