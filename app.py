@@ -76,10 +76,17 @@ st.set_page_config(
 
 @st.cache_resource
 def get_connection() -> sqlite3.Connection:
-    """Crea (o reutiliza) la conexión a la base de datos SQLite y asegura las tablas."""
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    _create_tables(conn)
-    return conn
+    """Crea (o reutiliza) la conexión a la base de datos SQLite. No crea tablas aquí:
+    si esta función queda cacheada de una versión anterior del código, las tablas nuevas
+    (como 'users') nunca se crearían. Ver ensure_schema()."""
+    return sqlite3.connect(DB_PATH, check_same_thread=False)
+
+
+def ensure_schema() -> None:
+    """Se llama en cada carga de la app (no está cacheada). CREATE TABLE IF NOT EXISTS es
+    barato e idempotente, así que esto garantiza que el esquema esté siempre al día aunque
+    get_connection() venga de una versión anterior cacheada del proceso."""
+    _create_tables(get_connection())
 
 
 def _create_tables(conn: sqlite3.Connection) -> None:
@@ -197,7 +204,12 @@ def create_user(name: str, email: str, password: str) -> tuple[bool, str]:
     """Crea una cuenta nueva. Devuelve (éxito, mensaje)."""
     conn = get_connection()
     email_norm = email.strip().lower()
-    existente = conn.execute("SELECT id FROM users WHERE email=?", (email_norm,)).fetchone()
+    try:
+        existente = conn.execute("SELECT id FROM users WHERE email=?", (email_norm,)).fetchone()
+    except sqlite3.OperationalError:
+        ensure_schema()
+        existente = conn.execute("SELECT id FROM users WHERE email=?", (email_norm,)).fetchone()
+
     if existente:
         return False, "Ya existe una cuenta registrada con ese correo."
 
@@ -215,9 +227,16 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
     """Verifica correo/contraseña. Devuelve el perfil del usuario o None si no coincide."""
     conn = get_connection()
     email_norm = email.strip().lower()
-    fila = conn.execute(
-        "SELECT name, email, password_hash, salt FROM users WHERE email=?", (email_norm,)
-    ).fetchone()
+    try:
+        fila = conn.execute(
+            "SELECT name, email, password_hash, salt FROM users WHERE email=?", (email_norm,)
+        ).fetchone()
+    except sqlite3.OperationalError:
+        ensure_schema()
+        fila = conn.execute(
+            "SELECT name, email, password_hash, salt FROM users WHERE email=?", (email_norm,)
+        ).fetchone()
+
     if fila is None:
         return None
 
@@ -1567,6 +1586,7 @@ def render_login_screen() -> None:
 
 def main() -> None:
     apply_custom_css()
+    ensure_schema()
 
     if not st.session_state.get("logged_in"):
         render_login_screen()
