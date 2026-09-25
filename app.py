@@ -209,7 +209,7 @@ DB_EXERCISES: dict[str, list[str]] = {
     "Glúteos": ["Hip Thrust", "Patada de Glúteo en Polea", "Peso Muerto a una Pierna", "Puente de Glúteo",
                 "Abducción de Cadera en Máquina", "Sentadilla Sumó con Mancuerna"],
     "Pantorrillas": ["Elevación de Talones de Pie", "Elevación de Talones Sentado", "Elevación de Talones en Prensa"],
-    "Hombros": ["Press Militar", "Press Arnold", "Press Landmine", "Elevaciones Laterales",
+    "Hombros": ["Press en polea", "Press Arnold", "Press Landmine", "Elevaciones Laterales",
                 "Elevaciones Frontales", "Pájaros Posteriores", "Remo al Mentón", "Face Pull"],
     "Brazos": ["Curl Barra Z", "Curl Martillo", "Curl Predicador", "Curl Concentrado",
                "Press Francés", "Fondos Tríceps en Banco", "Extensión de Tríceps en Polea", "Curl 21s"],
