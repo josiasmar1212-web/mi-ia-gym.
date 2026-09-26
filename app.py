@@ -125,6 +125,86 @@ def _create_tables(conn: sqlite3.Connection) -> None:
             carbs INTEGER, grasa INTEGER, agua_l REAL
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS profiles (
+            operador_id TEXT PRIMARY KEY,
+            name TEXT, weight REAL, height REAL, age INTEGER, created_at TEXT
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS clients (
+            trainer_id TEXT, client_slug TEXT, name TEXT, age INTEGER,
+            weight REAL, height REAL, created_at TEXT,
+            PRIMARY KEY (trainer_id, client_slug)
+        )
+    """)
+    conn.commit()
+
+
+def save_profile(operador_id: str, name: str, weight: float, height: float, age: int) -> None:
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO profiles (operador_id, name, weight, height, age, created_at) VALUES (?,?,?,?,?,?) "
+        "ON CONFLICT(operador_id) DO UPDATE SET name=excluded.name, weight=excluded.weight, "
+        "height=excluded.height, age=excluded.age",
+        (operador_id, name, weight, height, age, datetime.now().strftime("%Y-%m-%d %H:%M")),
+    )
+    conn.commit()
+
+
+def load_profile(operador_id: str) -> Optional[dict]:
+    conn = get_connection()
+    fila = conn.execute(
+        "SELECT name, weight, height, age FROM profiles WHERE operador_id=?", (operador_id,)
+    ).fetchone()
+    if fila is None:
+        return None
+    name, weight, height, age = fila
+    return {"id": operador_id, "name": name, "weight": weight, "height": height, "age": age}
+
+
+MAX_CLIENTES_POR_ENTRENADOR = 20
+
+
+def add_client(trainer_id: str, name: str, age: int, weight: float, height: float = 170.0) -> tuple[bool, str]:
+    """Añade un cliente a la cartera de un entrenador. Límite inicial: 20 clientes."""
+    conn = get_connection()
+    total = conn.execute("SELECT COUNT(*) FROM clients WHERE trainer_id=?", (trainer_id,)).fetchone()[0]
+    if total >= MAX_CLIENTES_POR_ENTRENADOR:
+        return False, f"Has alcanzado el máximo de {MAX_CLIENTES_POR_ENTRENADOR} clientes de este plan inicial."
+
+    slug = name.strip().lower().replace(" ", "_")
+    if not slug:
+        return False, "Escribe el nombre del cliente."
+
+    existente = conn.execute(
+        "SELECT 1 FROM clients WHERE trainer_id=? AND client_slug=?", (trainer_id, slug)
+    ).fetchone()
+    if existente:
+        return False, "Ya tienes un cliente con ese nombre."
+
+    conn.execute(
+        "INSERT INTO clients (trainer_id, client_slug, name, age, weight, height, created_at) "
+        "VALUES (?,?,?,?,?,?,?)",
+        (trainer_id, slug, name.strip().title(), age, weight, height,
+         datetime.now().strftime("%Y-%m-%d %H:%M")),
+    )
+    conn.commit()
+    return True, "Cliente añadido."
+
+
+def list_clients(trainer_id: str) -> list[dict]:
+    conn = get_connection()
+    filas = conn.execute(
+        "SELECT client_slug, name, age, weight, height FROM clients WHERE trainer_id=? ORDER BY name",
+        (trainer_id,),
+    ).fetchall()
+    return [{"slug": f[0], "name": f[1], "age": f[2], "weight": f[3], "height": f[4]} for f in filas]
+
+
+def remove_client(trainer_id: str, client_slug: str) -> None:
+    conn = get_connection()
+    conn.execute("DELETE FROM clients WHERE trainer_id=? AND client_slug=?", (trainer_id, client_slug))
     conn.commit()
 
 
@@ -209,7 +289,7 @@ DB_EXERCISES: dict[str, list[str]] = {
     "Glúteos": ["Hip Thrust", "Patada de Glúteo en Polea", "Peso Muerto a una Pierna", "Puente de Glúteo",
                 "Abducción de Cadera en Máquina", "Sentadilla Sumó con Mancuerna"],
     "Pantorrillas": ["Elevación de Talones de Pie", "Elevación de Talones Sentado", "Elevación de Talones en Prensa"],
-    "Hombros": ["Press en polea", "Press Arnold", "Press Landmine", "Elevaciones Laterales",
+    "Hombros": ["Press Militar", "Press Arnold", "Press Landmine", "Elevaciones Laterales",
                 "Elevaciones Frontales", "Pájaros Posteriores", "Remo al Mentón", "Face Pull"],
     "Brazos": ["Curl Barra Z", "Curl Martillo", "Curl Predicador", "Curl Concentrado",
                "Press Francés", "Fondos Tríceps en Banco", "Extensión de Tríceps en Polea", "Curl 21s"],
@@ -291,7 +371,8 @@ MUSCLE_REGION_MAP: dict[str, list[str]] = {
 
 def render_body_diagram(grupo: str) -> None:
     """Dibuja un maniquí simplificado resaltando la zona trabajada. No es un diagrama anatómico preciso,
-    solo una guía visual rápida."""
+    solo una guía visual rápida (extremidades en forma de cápsula + articulaciones, para que se vea
+    más humano que un conjunto de rectángulos)."""
     highlight = set(MUSCLE_REGION_MAP.get(grupo, []))
 
     def fill(region_id: str) -> str:
@@ -305,19 +386,33 @@ def render_body_diagram(grupo: str) -> None:
     <svg viewBox="0 0 200 380" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:190px;">
       <circle cx="100" cy="34" r="23" fill="#2a332e" stroke="var(--line)" stroke-width="2" opacity="0.7"/>
       <rect x="90" y="53" width="20" height="14" fill="#2a332e" opacity="0.7"/>
+
       <circle cx="58" cy="76" r="15" fill="{fill('shoulders')}" opacity="{op('shoulders')}"/>
       <circle cx="142" cy="76" r="15" fill="{fill('shoulders')}" opacity="{op('shoulders')}"/>
-      <rect x="63" y="68" width="74" height="55" rx="14" fill="{fill('chest')}" opacity="{op('chest')}"/>
-      <rect x="68" y="124" width="64" height="48" rx="10" fill="{fill('abs')}" opacity="{op('abs')}"/>
-      <rect x="63" y="173" width="74" height="30" rx="12" fill="{fill('hips')}" opacity="{op('hips')}"/>
-      <rect x="30" y="70" width="26" height="68" rx="12" fill="{fill('arm_l')}" opacity="{op('arm_l')}"/>
-      <rect x="144" y="70" width="26" height="68" rx="12" fill="{fill('arm_r')}" opacity="{op('arm_r')}"/>
-      <rect x="26" y="139" width="22" height="55" rx="10" fill="{fill('forearm_l')}" opacity="{op('forearm_l')}"/>
-      <rect x="152" y="139" width="22" height="55" rx="10" fill="{fill('forearm_r')}" opacity="{op('forearm_r')}"/>
-      <rect x="66" y="202" width="28" height="85" rx="12" fill="{fill('thigh_l')}" opacity="{op('thigh_l')}"/>
-      <rect x="106" y="202" width="28" height="85" rx="12" fill="{fill('thigh_r')}" opacity="{op('thigh_r')}"/>
-      <rect x="68" y="287" width="24" height="75" rx="10" fill="{fill('calf_l')}" opacity="{op('calf_l')}"/>
-      <rect x="108" y="287" width="24" height="75" rx="10" fill="{fill('calf_r')}" opacity="{op('calf_r')}"/>
+
+      <rect x="63" y="68" width="74" height="55" rx="24" fill="{fill('chest')}" opacity="{op('chest')}"/>
+      <rect x="68" y="124" width="64" height="48" rx="20" fill="{fill('abs')}" opacity="{op('abs')}"/>
+      <rect x="63" y="172" width="74" height="32" rx="16" fill="{fill('hips')}" opacity="{op('hips')}"/>
+
+      <rect x="32" y="72" width="22" height="64" rx="11" fill="{fill('arm_l')}" opacity="{op('arm_l')}"/>
+      <circle cx="43" cy="136" r="10" fill="{fill('forearm_l')}" opacity="{op('forearm_l')}"/>
+      <rect x="33" y="145" width="20" height="52" rx="10" fill="{fill('forearm_l')}" opacity="{op('forearm_l')}"/>
+      <circle cx="43" cy="200" r="8" fill="{fill('forearm_l')}" opacity="{op('forearm_l')}"/>
+
+      <rect x="146" y="72" width="22" height="64" rx="11" fill="{fill('arm_r')}" opacity="{op('arm_r')}"/>
+      <circle cx="157" cy="136" r="10" fill="{fill('forearm_r')}" opacity="{op('forearm_r')}"/>
+      <rect x="147" y="145" width="20" height="52" rx="10" fill="{fill('forearm_r')}" opacity="{op('forearm_r')}"/>
+      <circle cx="157" cy="200" r="8" fill="{fill('forearm_r')}" opacity="{op('forearm_r')}"/>
+
+      <rect x="67" y="203" width="26" height="80" rx="13" fill="{fill('thigh_l')}" opacity="{op('thigh_l')}"/>
+      <circle cx="80" cy="286" r="12" fill="{fill('calf_l')}" opacity="{op('calf_l')}"/>
+      <rect x="69" y="291" width="22" height="68" rx="11" fill="{fill('calf_l')}" opacity="{op('calf_l')}"/>
+      <circle cx="80" cy="362" r="9" fill="{fill('calf_l')}" opacity="{op('calf_l')}"/>
+
+      <rect x="107" y="203" width="26" height="80" rx="13" fill="{fill('thigh_r')}" opacity="{op('thigh_r')}"/>
+      <circle cx="120" cy="286" r="12" fill="{fill('calf_r')}" opacity="{op('calf_r')}"/>
+      <rect x="109" y="291" width="22" height="68" rx="11" fill="{fill('calf_r')}" opacity="{op('calf_r')}"/>
+      <circle cx="120" cy="362" r="9" fill="{fill('calf_r')}" opacity="{op('calf_r')}"/>
     </svg>
     </div>
     '''
@@ -600,8 +695,19 @@ def render_sidebar() -> tuple[str, str]:
         st.divider()
 
         st.markdown(f"👤 **{st.session_state.user['name']}**", unsafe_allow_html=True)
+
+        if st.session_state.get("modo_app") == "entrenador":
+            st.caption(f"🧑‍🏫 Modo entrenador · {st.session_state.get('trainer_name', '')}")
+            if st.button("🔁 Cambiar de cliente", use_container_width=True):
+                st.session_state["logged_in"] = False
+                st.session_state["onboarding_done"] = False
+                st.session_state["login_stage"] = "entrenador_roster"
+                st.rerun()
+
         if st.button("🔓 Cerrar sesión", use_container_width=True):
-            st.session_state["logged_in"] = False
+            for key in ("logged_in", "onboarding_done", "login_stage", "modo_app",
+                        "trainer_id", "trainer_name", "pendiente_id", "pendiente_nombre", "client_slug"):
+                st.session_state.pop(key, None)
             st.rerun()
 
         st.divider()
@@ -1424,7 +1530,7 @@ def render_header(user: str) -> None:
     st.markdown(f"""
     <div class="hero-card">
         <div>
-            <div class="hero-eyebrow">MorphAI · Telemetría y Rendimiento v{APP_VERSION}</div>
+            <div class="hero-eyebrow">📋 Panel Principal</div>
             <p class="hero-title">Hola, {nombre_mostrar} 👋</p>
             <p class="hero-sub">Sistema neural activo. Selecciona un módulo en el menú lateral para gestionar tu día atlético.</p>
         </div>
@@ -1461,50 +1567,249 @@ MODULE_HANDLERS = {
 # LOGIN / SELECCIÓN DE OPERADOR
 # ============================================================
 
-def render_login_screen() -> None:
-    """Pantalla de entrada simple: nombre + apellido identifican al operador (sin correo ni
-    contraseña, sin tocar ninguna tabla nueva de la base de datos), y de paso se recogen los
-    datos básicos para que el TDEE y el 1RM ya tengan algo con qué calcular desde el primer día."""
+def render_brand_mark() -> None:
+    """Logo propio (círculo con degradado + monograma 'M'), en vez de un emoji que se ve
+    distinto -y a veces cutre- según el teléfono."""
     st.markdown("""
-    <div style="text-align:center; margin-top:6vh; margin-bottom:26px;">
-        <div style="font-size:3.4rem;">🧬</div>
-        <p style="font-family:'Space Grotesk',sans-serif; font-size:1.9rem; font-weight:800; margin:8px 0 6px 0;
+    <div style="width:70px; height:70px; border-radius:20px; margin:0 auto 16px auto;
+                background:linear-gradient(135deg, var(--signal), var(--signal-2));
+                display:flex; align-items:center; justify-content:center;
+                box-shadow:0 10px 28px rgba(53,214,140,0.35);">
+        <span style="font-family:'Space Grotesk',sans-serif; font-size:2rem; font-weight:800; color:#04110b;">M</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_login_screen() -> None:
+    """Pantalla de entrada de un único paso. Escribes tu nombre y apellido:
+    - Si ya existe ese perfil, entra directo con tus datos guardados.
+    - Si es la primera vez, pide 3 datos rápidos (peso/altura/edad) y crea el perfil.
+    También ofrece un 'Modo Entrenador' para gestionar hasta 20 clientes desde una sola cuenta."""
+    render_brand_mark()
+    st.markdown("""
+    <div style="text-align:center; margin-bottom:22px;">
+        <p style="font-family:'Space Grotesk',sans-serif; font-size:1.9rem; font-weight:800; margin:0 0 6px 0;
                    background:linear-gradient(90deg,#eef2f0 25%, var(--signal) 60%, var(--signal-2) 100%);
                    -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">
             MorphAI Performance OS
         </p>
         <p style="color:var(--text-mid); font-size:0.95rem;">
-            Escribe tus datos para empezar. Cada nombre + apellido tiene su propio historial, aislado del resto.
+            Tu entrenador de fuerza, running y recuperación, con un coach de IA integrado.
         </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    stage = st.session_state.get("login_stage", "elegir_modo")
+    _, mid, _ = st.columns([1, 3, 1])
+
+    with mid:
+        # --- Paso 0: ¿personal o entrenador? ---
+        if stage == "elegir_modo":
+            with st.container(border=True):
+                st.markdown("**¿Cómo vas a usar la app?**")
+                if st.button("🙋 Voy a entrenar yo", use_container_width=True, type="primary"):
+                    st.session_state["login_stage"] = "personal_nombre"
+                    st.rerun()
+                if st.button("🧑‍🏫 Soy entrenador/a — gestiono clientes", use_container_width=True):
+                    st.session_state["login_stage"] = "entrenador_nombre"
+                    st.rerun()
+
+        # --- Modo personal: nombre → entra directo o pide datos si es nuevo ---
+        elif stage == "personal_nombre":
+            with st.container(border=True):
+                c1, c2 = st.columns(2)
+                nombre = c1.text_input("Nombre", placeholder="Ej: Josías", key="p_nombre")
+                apellido = c2.text_input("Apellido", placeholder="Ej: Martínez", key="p_apellido")
+
+                if st.button("🚀 Entrar", use_container_width=True, type="primary"):
+                    if not nombre.strip() or not apellido.strip():
+                        st.warning("Escribe tu nombre y apellido.")
+                    else:
+                        operador_id = f"{nombre.strip()}_{apellido.strip()}".lower().replace(" ", "_")
+                        perfil = load_profile(operador_id)
+                        if perfil is not None:
+                            st.session_state["user"] = perfil
+                            st.session_state["modo_app"] = "personal"
+                            st.session_state["logged_in"] = True
+                            st.rerun()
+                        else:
+                            st.session_state["pendiente_id"] = operador_id
+                            st.session_state["pendiente_nombre"] = f"{nombre.strip().title()} {apellido.strip().title()}"
+                            st.session_state["login_stage"] = "personal_nuevo"
+                            st.rerun()
+                if st.button("← Volver", use_container_width=True):
+                    st.session_state["login_stage"] = "elegir_modo"
+                    st.rerun()
+
+        # --- Primera vez en modo personal: 3 datos rápidos ---
+        elif stage == "personal_nuevo":
+            with st.container(border=True):
+                st.caption(f"¡Hola, {st.session_state['pendiente_nombre'].split()[0]}! No te encontramos "
+                           f"— completa esto y ya tienes cuenta:")
+                c1, c2, c3 = st.columns(3)
+                peso = c1.number_input("Peso (kg)", 30.0, 250.0, 75.0, 0.5, key="p_peso")
+                altura = c2.number_input("Altura (cm)", 140, 220, 175, key="p_altura")
+                edad = c3.number_input("Edad", 12, 90, 25, key="p_edad")
+
+                if st.button("✅ Crear cuenta y entrar", use_container_width=True, type="primary"):
+                    operador_id = st.session_state["pendiente_id"]
+                    nombre_completo = st.session_state["pendiente_nombre"]
+                    save_profile(operador_id, nombre_completo, peso, altura, edad)
+                    st.session_state["user"] = {
+                        "id": operador_id, "name": nombre_completo,
+                        "weight": peso, "height": altura, "age": edad,
+                    }
+                    st.session_state["modo_app"] = "personal"
+                    st.session_state["logged_in"] = True
+                    st.rerun()
+                if st.button("← Volver", use_container_width=True):
+                    st.session_state["login_stage"] = "personal_nombre"
+                    st.rerun()
+
+        # --- Modo entrenador: identifica al entrenador (mismo mecanismo, sin cliente aún) ---
+        elif stage == "entrenador_nombre":
+            with st.container(border=True):
+                st.caption("Identifícate como entrenador/a. Luego gestionas tu cartera de clientes.")
+                c1, c2 = st.columns(2)
+                nombre = c1.text_input("Tu nombre", placeholder="Ej: Josías", key="e_nombre")
+                apellido = c2.text_input("Tu apellido", placeholder="Ej: Martínez", key="e_apellido")
+
+                if st.button("Continuar →", use_container_width=True, type="primary"):
+                    if not nombre.strip() or not apellido.strip():
+                        st.warning("Escribe tu nombre y apellido.")
+                    else:
+                        trainer_id = f"trainer_{nombre.strip()}_{apellido.strip()}".lower().replace(" ", "_")
+                        if load_profile(trainer_id) is None:
+                            save_profile(trainer_id, f"{nombre.strip().title()} {apellido.strip().title()}",
+                                         0, 0, 0)
+                        st.session_state["trainer_id"] = trainer_id
+                        st.session_state["trainer_name"] = f"{nombre.strip().title()} {apellido.strip().title()}"
+                        st.session_state["modo_app"] = "entrenador"
+                        st.session_state["login_stage"] = "entrenador_roster"
+                        st.rerun()
+                if st.button("← Volver", use_container_width=True):
+                    st.session_state["login_stage"] = "elegir_modo"
+                    st.rerun()
+
+        # --- Cartera de clientes del entrenador ---
+        elif stage == "entrenador_roster":
+            render_trainer_roster()
+
+
+def render_trainer_roster() -> None:
+    trainer_id = st.session_state["trainer_id"]
+    clientes = list_clients(trainer_id)
+
+    st.markdown(f"**Clientes de {st.session_state['trainer_name']}** · {len(clientes)}/{MAX_CLIENTES_POR_ENTRENADOR}")
+
+    if clientes:
+        for cliente in clientes:
+            with st.container(border=True):
+                cc1, cc2 = st.columns([3, 1])
+                cc1.markdown(f"**{cliente['name']}** · {cliente['age']} años · {cliente['weight']} kg")
+                if cc2.button("Entrar →", key=f"entrar_{cliente['slug']}", use_container_width=True):
+                    operador_id = f"{trainer_id}__{cliente['slug']}"
+                    perfil_cliente = load_profile(operador_id)
+                    if perfil_cliente is None:
+                        save_profile(operador_id, cliente["name"], cliente["weight"], cliente["height"], cliente["age"])
+                        perfil_cliente = load_profile(operador_id)
+                    st.session_state["user"] = perfil_cliente
+                    st.session_state["client_slug"] = cliente["slug"]
+                    st.session_state["logged_in"] = True
+                    st.rerun()
+    else:
+        st.info("Todavía no tienes clientes. Añade el primero abajo.")
+
+    st.divider()
+    if len(clientes) >= MAX_CLIENTES_POR_ENTRENADOR:
+        st.warning(f"Has llegado al límite de {MAX_CLIENTES_POR_ENTRENADOR} clientes de este plan inicial.")
+    else:
+        with st.expander("➕ Añadir nuevo cliente", expanded=len(clientes) == 0):
+            c1, c2, c3 = st.columns(3)
+            nombre_cli = st.text_input("Nombre del cliente", placeholder="Ej: Richard Gómez", key="nuevo_cliente_nombre")
+            edad_cli = c1.number_input("Edad", 5, 100, 30, key="nuevo_cliente_edad")
+            peso_cli = c2.number_input("Peso (kg)", 20.0, 300.0, 80.0, 0.5, key="nuevo_cliente_peso")
+            altura_cli = c3.number_input("Altura (cm)", 100, 230, 175, key="nuevo_cliente_altura")
+
+            if st.button("Añadir cliente", use_container_width=True, type="primary"):
+                ok, msg = add_client(trainer_id, nombre_cli, edad_cli, peso_cli, altura_cli)
+                if ok:
+                    st.success(msg)
+                    st.rerun()
+                else:
+                    st.warning(msg)
+
+    if st.button("← Salir del modo entrenador"):
+        st.session_state["login_stage"] = "elegir_modo"
+        st.rerun()
+
+
+def render_onboarding_screen() -> None:
+    """Carrusel de bienvenida que se muestra una única vez, justo después de entrar,
+    para que alguien nuevo entienda de un vistazo para qué sirve la app antes de ver
+    números y gráficos."""
+    render_brand_mark()
+    nombre_mostrar = st.session_state.user["name"].split()[0]
+    st.markdown(f"""
+    <div style="text-align:center; margin-bottom:10px;">
+        <p style="font-family:'Space Grotesk',sans-serif; font-size:1.5rem; font-weight:800; margin:0;">
+            ¡Bienvenido, {nombre_mostrar}!
+        </p>
+        <p style="color:var(--text-mid); font-size:0.9rem;">Esto es lo que puedes hacer con MorphAI:</p>
+    </div>
+
+    <div style="position:relative; height:190px; overflow:hidden; border-radius:18px;
+                border:1px solid var(--line); background:var(--panel); margin:18px 0;">
+        <style>
+        .onboard-slide {{
+            position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+            justify-content:center; text-align:center; padding:24px; opacity:0;
+            animation: onboardFade 12s infinite;
+        }}
+        .onboard-slide:nth-child(1) {{ animation-delay: 0s; }}
+        .onboard-slide:nth-child(2) {{ animation-delay: 3s; }}
+        .onboard-slide:nth-child(3) {{ animation-delay: 6s; }}
+        .onboard-slide:nth-child(4) {{ animation-delay: 9s; }}
+        @keyframes onboardFade {{
+            0% {{ opacity: 0; }} 3% {{ opacity: 1; }} 22% {{ opacity: 1; }} 25% {{ opacity: 0; }} 100% {{ opacity: 0; }}
+        }}
+        </style>
+        <div class="onboard-slide">
+            <div style="font-size:2.4rem;">🧠</div>
+            <p style="font-weight:700; margin:8px 0 4px 0;">Mide tu Readiness</p>
+            <p style="color:var(--text-mid); font-size:0.85rem; max-width:280px;">
+                Antes de entrenar, sabe si tu cuerpo está listo para el máximo esfuerzo o si toca bajar intensidad.
+            </p>
+        </div>
+        <div class="onboard-slide">
+            <div style="font-size:2.4rem;">🤖</div>
+            <p style="font-weight:700; margin:8px 0 4px 0;">Coach con IA</p>
+            <p style="color:var(--text-mid); font-size:0.85rem; max-width:280px;">
+                Sube tu rutina (texto o foto) y recibe una versión mejorada al instante.
+            </p>
+        </div>
+        <div class="onboard-slide">
+            <div style="font-size:2.4rem;">🔥</div>
+            <p style="font-weight:700; margin:8px 0 4px 0;">Calentamientos a medida</p>
+            <p style="color:var(--text-mid); font-size:0.85rem; max-width:280px;">
+                La IA genera tu calentamiento según lo que vayas a entrenar hoy.
+            </p>
+        </div>
+        <div class="onboard-slide">
+            <div style="font-size:2.4rem;">📊</div>
+            <p style="font-weight:700; margin:8px 0 4px 0;">Todo en un solo lugar</p>
+            <p style="color:var(--text-mid); font-size:0.85rem; max-width:280px;">
+                Fuerza, running, nutrición y sueño conectados, con tu progreso siempre a la vista.
+            </p>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
     _, mid, _ = st.columns([1, 3, 1])
     with mid:
-        with st.container(border=True):
-            c1, c2 = st.columns(2)
-            nombre = c1.text_input("Nombre", placeholder="Ej: Josías", key="perfil_nombre")
-            apellido = c2.text_input("Apellido", placeholder="Ej: Martínez", key="perfil_apellido")
-
-            c3, c4, c5 = st.columns(3)
-            peso = c3.number_input("Peso (kg)", 30.0, 250.0, 75.0, 0.5, key="perfil_peso")
-            altura = c4.number_input("Altura (cm)", 140, 220, 175, key="perfil_altura")
-            edad = c5.number_input("Edad", 12, 90, 25, key="perfil_edad")
-
-            if st.button("🚀 Entrar", use_container_width=True, type="primary"):
-                if not nombre.strip() or not apellido.strip():
-                    st.warning("Escribe al menos tu nombre y apellido.")
-                else:
-                    operador_id = f"{nombre.strip()}_{apellido.strip()}".lower().replace(" ", "_")
-                    st.session_state["user"] = {
-                        "id": operador_id,
-                        "name": f"{nombre.strip().title()} {apellido.strip().title()}",
-                        "weight": peso,
-                        "height": altura,
-                        "age": edad,
-                    }
-                    st.session_state["logged_in"] = True
-                    st.rerun()
+        if st.button("Comenzar →", use_container_width=True, type="primary"):
+            st.session_state["onboarding_done"] = True
+            st.rerun()
 
 
 # ============================================================
@@ -1517,6 +1822,10 @@ def main() -> None:
 
     if not st.session_state.get("logged_in"):
         render_login_screen()
+        return
+
+    if not st.session_state.get("onboarding_done"):
+        render_onboarding_screen()
         return
 
     # El identificador único de cada operador es "nombre_apellido"; el nombre completo solo se usa para mostrar.
