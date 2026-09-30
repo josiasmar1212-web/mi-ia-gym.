@@ -17,6 +17,7 @@ Configuración de la IA (recomendado para producción):
 from __future__ import annotations
 
 import base64
+import functools
 import re
 import sqlite3
 import time
@@ -138,9 +139,35 @@ def _create_tables(conn: sqlite3.Connection) -> None:
             PRIMARY KEY (trainer_id, client_slug)
         )
     """)
+
+    # Índices: sin esto, cada consulta ("dame los registros de este usuario") recorre TODA la
+    # tabla entries/metrics/readiness/nutrition fila por fila. Con miles de registros acumulados
+    # (varios clientes, meses de historial) eso se nota. Con índice, SQLite salta directo a las
+    # filas de ese usuario. CREATE INDEX IF NOT EXISTS es barato e idempotente, igual que las tablas.
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_entries_user ON entries(user)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_metrics_user ON metrics(user)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_readiness_user ON readiness(user)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_nutrition_user ON nutrition(user)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_clients_trainer ON clients(trainer_id)")
     conn.commit()
 
 
+def db_safe(func):
+    """Decorador para toda función que escribe en la base de datos. Antes, un fallo aquí
+    (ej. el disco de Streamlit Cloud sin espacio, o un bloqueo de SQLite) tumbaba la app entera
+    con la pantalla en blanco genérica de Streamlit. Ahora se muestra un error legible y se
+    detiene solo esa ejecución — el resto de la app sigue intacta en el siguiente refresco."""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except sqlite3.Error as exc:
+            st.error(f"⚠️ No se pudo guardar el cambio: {exc}")
+            st.stop()
+    return wrapper
+
+
+@db_safe
 def save_profile(operador_id: str, name: str, weight: float, height: float, age: int) -> None:
     conn = get_connection()
     conn.execute(
@@ -166,6 +193,7 @@ def load_profile(operador_id: str) -> Optional[dict]:
 MAX_CLIENTES_POR_ENTRENADOR = 20
 
 
+@db_safe
 def add_client(trainer_id: str, name: str, age: int, weight: float, height: float = 170.0) -> tuple[bool, str]:
     """Añade un cliente a la cartera de un entrenador. Límite inicial: 20 clientes."""
     conn = get_connection()
@@ -202,12 +230,14 @@ def list_clients(trainer_id: str) -> list[dict]:
     return [{"slug": f[0], "name": f[1], "age": f[2], "weight": f[3], "height": f[4]} for f in filas]
 
 
+@db_safe
 def remove_client(trainer_id: str, client_slug: str) -> None:
     conn = get_connection()
     conn.execute("DELETE FROM clients WHERE trainer_id=? AND client_slug=?", (trainer_id, client_slug))
     conn.commit()
 
 
+@db_safe
 def update_client_stats(trainer_id: str, client_slug: str, age: int, weight: float, height: float) -> None:
     """Actualiza edad/peso/altura de un cliente. No permite cambiar el nombre (ni por tanto el slug),
     porque el slug es la clave que conecta al cliente con su historial de entrenamientos: cambiarlo
@@ -224,20 +254,51 @@ def update_client_stats(trainer_id: str, client_slug: str, age: int, weight: flo
         save_profile(operador_id, perfil["name"], weight, height, age)
 
 
-def get_client_summary(trainer_id: str, client_slug: str) -> dict:
-    """Resumen rápido de actividad de un cliente, para que el entrenador vea de un vistazo
-    quién ha entrenado y quién necesita seguimiento, sin entrar a cada perfil uno por uno."""
-    operador_id = f"{trainer_id}__{client_slug}"
-    df = load_entries(operador_id)
-    if df.empty:
-        return {"ultima_sesion": "Sin actividad todavía", "racha": 0, "total_sesiones": 0, "readiness": "N/A"}
-    racha = compute_streak(df)
-    ultima = pd.to_datetime(df.iloc[0]["fecha"]).strftime("%d/%m/%Y")
-    df_r = load_readiness(operador_id)
-    readiness = f"{df_r.iloc[0]['score']:.0f}%" if not df_r.empty else "N/A"
-    return {"ultima_sesion": ultima, "racha": racha, "total_sesiones": len(df), "readiness": readiness}
+def get_clients_summary_bulk(trainer_id: str, slugs: list[str]) -> dict[str, dict]:
+    """Resumen de actividad de TODOS los clientes de un entrenador en solo 2 consultas
+    agrupadas (en vez de 2 consultas por cada cliente, una por una). Con 20 clientes eso es
+    la diferencia entre ~40 consultas y 2 al abrir la cartera."""
+    if not slugs:
+        return {}
+
+    conn = get_connection()
+    operador_ids = [f"{trainer_id}__{s}" for s in slugs]
+    placeholders = ",".join("?" * len(operador_ids))
+
+    conteos = conn.execute(
+        f"SELECT user, COUNT(*), MAX(fecha) FROM entries WHERE user IN ({placeholders}) GROUP BY user",
+        operador_ids,
+    ).fetchall()
+    stats_por_operador = {u: (total, ultima) for u, total, ultima in conteos}
+
+    # El score de readiness más reciente por usuario: nos quedamos con el primero que
+    # aparece por cada 'user' ya que vienen ordenados por id descendente.
+    filas_r = conn.execute(
+        f"SELECT user, score FROM readiness WHERE user IN ({placeholders}) ORDER BY id DESC",
+        operador_ids,
+    ).fetchall()
+    readiness_por_operador: dict[str, float] = {}
+    for u, score in filas_r:
+        readiness_por_operador.setdefault(u, score)
+
+    resultado: dict[str, dict] = {}
+    for slug, operador_id in zip(slugs, operador_ids):
+        if operador_id not in stats_por_operador:
+            resultado[slug] = {"ultima_sesion": "Sin actividad todavía", "racha": 0,
+                                "total_sesiones": 0, "readiness": "N/A"}
+            continue
+        total, ultima_raw = stats_por_operador[operador_id]
+        racha = compute_streak(load_entries(operador_id))
+        readiness = (f"{readiness_por_operador[operador_id]:.0f}%"
+                     if operador_id in readiness_por_operador else "N/A")
+        resultado[slug] = {
+            "ultima_sesion": pd.to_datetime(ultima_raw).strftime("%d/%m/%Y"),
+            "racha": racha, "total_sesiones": total, "readiness": readiness,
+        }
+    return resultado
 
 
+@db_safe
 def save_entry(user: str, tipo: str, actividad: str, valor: float, meta: str, extra: str) -> None:
     conn = get_connection()
     conn.execute(
@@ -252,6 +313,7 @@ def load_entries(user: str) -> pd.DataFrame:
     return pd.read_sql_query("SELECT * FROM entries WHERE user=? ORDER BY id DESC", conn, params=(user,))
 
 
+@db_safe
 def save_metric(user: str, peso: float, grasa: float, nota: str) -> None:
     conn = get_connection()
     conn.execute(
@@ -266,6 +328,7 @@ def load_metrics(user: str) -> pd.DataFrame:
     return pd.read_sql_query("SELECT * FROM metrics WHERE user=? ORDER BY id", conn, params=(user,))
 
 
+@db_safe
 def save_readiness(user: str, sueno: float, calidad: int, doms: int, estres: int,
                     hrv: int, score: float, nota: str) -> None:
     conn = get_connection()
@@ -282,6 +345,7 @@ def load_readiness(user: str) -> pd.DataFrame:
     return pd.read_sql_query("SELECT * FROM readiness WHERE user=? ORDER BY id DESC", conn, params=(user,))
 
 
+@db_safe
 def save_nutrition(user: str, cal: int, prot: int, carbs: int, grasa: int, agua: float) -> None:
     conn = get_connection()
     conn.execute(
@@ -296,6 +360,7 @@ def load_nutrition(user: str) -> pd.DataFrame:
     return pd.read_sql_query("SELECT * FROM nutrition WHERE user=? ORDER BY id DESC", conn, params=(user,))
 
 
+@db_safe
 def delete_record(table: str, record_id: int, user: str) -> None:
     conn = get_connection()
     conn.execute(f"DELETE FROM {table} WHERE id=? AND user=?", (record_id, user))
@@ -1738,8 +1803,11 @@ def render_trainer_roster() -> None:
             if busqueda:
                 clientes = [c for c in clientes if busqueda.lower() in c["name"].lower()]
 
+        with st.spinner("Cargando actividad de tus clientes..."):
+            resumenes = get_clients_summary_bulk(trainer_id, [c["slug"] for c in clientes])
+
         for cliente in clientes:
-            resumen = get_client_summary(trainer_id, cliente["slug"])
+            resumen = resumenes[cliente["slug"]]
             with st.container(border=True):
                 cc1, cc2 = st.columns([3, 1])
                 cc1.markdown(f"**{cliente['name']}** · {cliente['age']} años · {cliente['weight']} kg")
